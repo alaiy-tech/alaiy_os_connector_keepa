@@ -63,6 +63,7 @@ function _render_token_balance(frm) {
   const tokensLeft = frm.doc.keepa_tokens_left;
   const refillRate = frm.doc.keepa_refill_rate;
   const updatedAt = frm.doc.keepa_tokens_updated_at;
+  const flowReduction = frm.doc.keepa_token_flow_reduction;
 
   frm.dashboard.clear_headline();
 
@@ -74,12 +75,27 @@ function _render_token_balance(frm) {
   }
 
   const isLow = tokensLeft < (refillRate || 0) * 5; // less than ~5 min of refill left
-  const indicator = isLow ? "orange" : "green";
+  // Keepa: "unused tokens expire after 60 minutes" -- there's no bucket cap
+  // published, but a balance already sitting near an hour's worth of refill
+  // is a sign tokens are about to be generated and lost unused, not saved.
+  const maxUseful = (refillRate || 0) * 60;
+  const nearWaste = maxUseful > 0 && tokensLeft >= maxUseful * 0.9;
+
+  let indicator = "green";
+  if (nearWaste) indicator = "blue";
+  if (isLow) indicator = "orange";
+
   const refillLine = refillRate
     ? __("refilling {0}/min", [refillRate])
     : "";
   const whenLine = updatedAt
     ? __("as of {0}", [frappe.datetime.comment_when(updatedAt)])
+    : "";
+  const wasteLine = nearWaste
+    ? __("-- near the ~60-min accumulation cap, tokens may be expiring unused")
+    : "";
+  const flowLine = flowReduction
+    ? __("(active trackings reducing refill by {0}/min)", [flowReduction])
     : "";
 
   frm.dashboard.set_headline_alert(
@@ -88,7 +104,8 @@ function _render_token_balance(frm) {
         <span class="indicator-pill ${indicator}">
           <span>${__("{0} Keepa tokens left", [tokensLeft])}</span>
         </span>
-        <span class="text-muted" style="margin-left: 8px;">${refillLine} ${whenLine}</span>
+        <span class="text-muted" style="margin-left: 8px;">${refillLine} ${whenLine} ${flowLine}</span>
+        ${wasteLine ? `<div class="text-muted small" style="margin-top: 4px;">${wasteLine}</div>` : ""}
       </div>
     </div>`,
   );

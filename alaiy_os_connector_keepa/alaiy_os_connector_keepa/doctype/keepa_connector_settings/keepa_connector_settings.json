@@ -17,6 +17,7 @@
     "keepa_tokens_left",
     "keepa_refill_rate",
     "keepa_refill_in_ms",
+    "keepa_token_flow_reduction",
     "keepa_tokens_updated_at",
     "sb_schedule",
     "keepa_watchlist_sync_interval"
@@ -100,6 +101,14 @@
       "fieldname": "keepa_refill_in_ms",
       "fieldtype": "Int",
       "label": "Refill In (ms)",
+      "read_only": 1
+    },
+    {
+      "default": "0",
+      "description": "How much active Tracking API usage (add_tracking) is reducing your refill rate, per Keepa's own tokenFlowReduction field. Nonzero only if trackings are active -- a real ongoing cost of using keepa/tracking.py, not a one-off charge.",
+      "fieldname": "keepa_token_flow_reduction",
+      "fieldtype": "Float",
+      "label": "Token Flow Reduction",
       "read_only": 1
     },
     {

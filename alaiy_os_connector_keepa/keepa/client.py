@@ -40,6 +40,17 @@ _PLAN_TIER_BY_REFILL_RATE = [
 ]
 
 
+def max_useful_tokens(refill_rate):
+    """
+    Keepa docs: "unused tokens expire after 60 minutes." Tokens generated
+    beyond ~60 minutes of accumulated refill are never actually usable --
+    they cap out and are lost, not banked indefinitely. This is the rough
+    ceiling past which sitting on a balance stops being "saved money" and
+    starts being wasted capacity.
+    """
+    return refill_rate * 60
+
+
 def _infer_plan_tier(refill_rate):
     for threshold, label in _PLAN_TIER_BY_REFILL_RATE:
         if refill_rate >= threshold:
@@ -81,6 +92,11 @@ class KeepaClient:
         self.wait_for_tokens = wait_for_tokens
         self.tokens_left = None
         self.tokens_used_this_session = 0
+        # requests sends "Accept-Encoding: gzip" by default (Keepa requires
+        # this); a shared Session reuses the underlying connection
+        # (Keep-Alive) across every call this client instance makes, per
+        # Keepa's own throughput guidance.
+        self._session = requests.Session()
 
     def _request(self, path, params, timeout=60):
         if self.wait_for_tokens:
@@ -94,7 +110,7 @@ class KeepaClient:
             if attempt:
                 time.sleep(min(_BACKOFF_BASE_SECONDS**attempt, _MAX_WAIT_SECONDS))
             try:
-                resp = requests.get(url, params=params, timeout=timeout)
+                resp = self._session.get(url, params=params, timeout=timeout)
             except requests.exceptions.RequestException as e:
                 last_error = str(e)
                 continue
@@ -139,6 +155,12 @@ class KeepaClient:
             updates["keepa_plan_tier"] = _infer_plan_tier(response["refillRate"])
         if "refillIn" in response:
             updates["keepa_refill_in_ms"] = response["refillIn"]
+        if "tokenFlowReduction" in response:
+            # Real, ongoing cost of active Tracking API usage (add_tracking):
+            # it reduces the effective refillRate by this much, not a one-off
+            # charge. Surfaced so tracking.py's cost is visible, not hidden
+            # inside a refillRate number that looks unexplained otherwise.
+            updates["keepa_token_flow_reduction"] = response["tokenFlowReduction"]
         if not updates:
             return
         updates["keepa_tokens_updated_at"] = frappe.utils.now_datetime()
@@ -332,7 +354,7 @@ class KeepaClient:
             if attempt:
                 time.sleep(min(_BACKOFF_BASE_SECONDS**attempt, _MAX_WAIT_SECONDS))
             try:
-                resp = requests.get(url, params=params, timeout=timeout)
+                resp = self._session.get(url, params=params, timeout=timeout)
             except requests.exceptions.RequestException as e:
                 last_error = str(e)
                 continue

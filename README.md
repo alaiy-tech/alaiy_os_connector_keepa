@@ -23,11 +23,19 @@ Jungle Scout connector (#296), which covers current-state discovery data.
   Keepa's own server-side push-notification mechanism for price/rank
   changes, a native alternative to polling.
 - **A token-aware client** (`keepa/client.py`) -- Keepa returns
-  `tokensLeft`/`refillIn`/`refillRate` on every response; that's the
-  authoritative balance, persisted onto Keepa Connector Settings after every
-  call (not something estimated from the plan tier), plus a pre-flight
-  `token_cost.py` cost table so an expensive call can be skipped/queued
-  before it's fired rather than after a 429.
+  `tokensLeft`/`refillIn`/`refillRate`/`tokenFlowReduction` on every
+  response; that's the authoritative balance, persisted onto Keepa
+  Connector Settings after every call (not something estimated from the
+  plan tier), plus a pre-flight `token_cost.py` cost table so an expensive
+  call can be skipped/queued before it's fired rather than after a 429.
+  `tokenFlowReduction` is real and ongoing, not cosmetic: it's how much
+  active Tracking API usage (`keepa/tracking.py`'s `add_tracking`) is
+  currently cutting into the refill rate, surfaced on the settings form so
+  that cost isn't hidden inside an unexplained refillRate number. The
+  client also reuses one `requests.Session` per instance (Keep-Alive, per
+  Keepa's own throughput guidance) and gets gzip response encoding for free
+  (requests' default `Accept-Encoding`, which Keepa's docs require every
+  client to accept).
 - **A response cache** (`Keepa Product Cache`) -- history is cached on a
   configurable TTL (default 6h), offers/deals on a shorter one (default 1h),
   so a repeat Ask Alaiy query doesn't spend a token.
@@ -100,13 +108,24 @@ Then, in **Keepa Connector Settings**:
 - **API Key** -- leave blank to use Alaiy's pooled key (`keepa_api_key` in
   `site_config.json`); set a value here to override with an
   enterprise customer's own key.
-- **Plan Tier** -- informational; the client paces off the real
-  `tokensLeft`/`refillRate` from the API, not this value.
+- **Plan Tier** -- read-only, auto-inferred from the live `refillRate` after
+  any real call. Not something to set by hand.
 - **Default Domain** -- Amazon marketplace used when a caller doesn't
   specify one (1 = US).
-- **History / Offers Cache (hours)** -- cache TTLs.
+- **History / Offers Cache (hours)** -- cache TTLs. Note the ceiling on how
+  much a longer TTL actually helps: Keepa's tokens **expire after 60
+  minutes if unused**, so a cache window far longer than that isn't "saving"
+  tokens past the first hour -- it's just serving stale-by-choice data while
+  the tokens that would have refreshed it were generated and lost anyway.
+  The real lever for cost is request volume matching refill rate, not TTL
+  length alone. The settings form's token banner flags this directly
+  (labelled "near the ~60-min accumulation cap") when the balance looks like
+  it's about to hit that ceiling.
 - **Watchlist Sync Interval** -- how often `Keepa Watchlist Item` rows
-  refresh in the background.
+  refresh in the background. Leave "Disabled" until you've sized this
+  against your actual refill rate -- e.g. tracking N ASINs hourly costs
+  roughly N tokens/hour; check that against Tokens Left / Refill Rate on
+  the settings form before enabling.
 
 ## File reference
 
