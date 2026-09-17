@@ -10,3 +10,9 @@ from alaiy_os_connector_keepa.keepa import search as _search
 def search_products(keyword, marketplace=None):
     domain = int(marketplace) if marketplace else None
     return _search.search_products(keyword, marketplace=domain)
+
+
+@frappe.whitelist()
+def search_categories(term, marketplace=None):
+    domain = int(marketplace) if marketplace else None
+    return _search.search_categories(term, marketplace=domain)

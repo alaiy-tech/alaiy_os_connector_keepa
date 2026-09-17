@@ -16,20 +16,41 @@ import frappe
 from alaiy_os_connector_keepa.keepa.client import KeepaClient
 
 
-def add_tracking(asin, marketplace=None, desired_price=None, price_type="buy_box", list_name=None):
+def add_tracking(asin, marketplace=None, desired_price=None, price_type="buy_box",
+                  is_drop=True, list_name=None, update_interval=1, ttl=None):
     """
-    Add a tracking for one ASIN. desired_price (in the marketplace's real
-    currency, e.g. dollars) triggers a Keepa-side notification once the
-    tracked price type crosses it -- the actual threshold semantics live in
-    Keepa's own tracking-creation-object schema; this passes the minimal
-    shape needed for a simple price-drop-below-X alert.
+    Add a tracking for one ASIN.
+
+    Builds a real Keepa tracking-creation-object per TrackingRequest.java /
+    Tracking.TrackingThresholdValue -- earlier versions of this omitted
+    mainDomainId (the object needs its own currency locale, not inherited
+    from the request's query-param domain) and isDrop/domain on the
+    threshold itself (without isDrop, Keepa cannot tell a price-drop-below-X
+    alert from a price-rise-above-X one).
+
+    desired_price is in the marketplace's real currency (e.g. dollars);
+    is_drop=True (default) alerts when the price falls to/below it,
+    is_drop=False alerts when it rises to/above it.
     """
     from alaiy_os_connector_keepa.keepa.csv_types import index_for_key
 
+    domain = marketplace or int(frappe.get_single("Keepa Connector Settings").keepa_default_domain or 1)
     price_type_index = index_for_key(price_type.upper()) if isinstance(price_type, str) else price_type
-    tracking_object = {"asin": asin}
+
+    tracking_object = {
+        "asin": asin,
+        "mainDomainId": domain,
+        "updateInterval": max(0, min(int(update_interval), 25)),
+    }
+    if ttl is not None:
+        tracking_object["ttl"] = int(ttl)
     if desired_price is not None and price_type_index is not None:
-        tracking_object["thresholdValues"] = [{"csvType": price_type_index, "thresholdValue": int(desired_price * 100)}]
+        tracking_object["thresholdValues"] = [{
+            "csvType": price_type_index,
+            "thresholdValue": int(desired_price * 100),
+            "domain": domain,
+            "isDrop": bool(is_drop),
+        }]
 
     client = KeepaClient()
     response = client.tracking("add", tracking=[tracking_object], list_name=list_name)

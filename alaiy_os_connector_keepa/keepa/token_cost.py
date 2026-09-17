@@ -13,12 +13,22 @@ TOKEN_COST = {
     "product": (1, 0, "asin"),                    # 1 token per ASIN looked up
     "product_with_offers": (1, 6, "offer page"),   # +6 tokens per offer page requested
     "search_product": (0, 10, "result page"),      # /search?type=product: 10/page
-    "query": (0, 10, "result page"),               # Product Finder /query: variable, ~10/page
+    # Product Finder /query is a DIFFERENT cost model from search_product above
+    # (they were wrongly conflated in an earlier version of this table): 10
+    # base tokens + 1 per 100 ASINs in the result set. If the query is run
+    # with stats=1 there is an ADDITIONAL +30 (+1 per 1,000,000 matched
+    # products) not modelled here -- estimate_tokens("query", ...) undercounts
+    # for a stats-enabled Product Finder call; not currently used that way.
+    "query": (10, 1, "100 asins returned"),
     "deal": (0, 5, "150 deals"),                   # 5 tokens per 150 deals returned
-    "category": (2, 0, "category"),                # 1 for the category + 1 for its parent tree
+    # Re-confirmed directly against category-lookup.html: a batch of up to
+    # 10 category IDs, WITH parents=1, is still a flat 1 token -- there is
+    # no separate parent-tree charge at all (an earlier version of this
+    # table guessed "1 + 1 for parents", which was wrong).
+    "category": (1, 0, "batch of up to 10 categories"),
     "search_category": (1, 0, "search"),           # /search?type=category: 1/search
     "seller": (0, 1, "seller"),                   # 1 token per requested seller
-    "sellerquery": (10, 1, "100 sellers returned"),  # 10 base + 1/100 sellers
+    "sellerquery": (10, 1, "100 sellers returned"),  # 10 base + 1 per 100 sellers (rounded up)
     "bestsellers": (50, 0, "list"),
     "topseller": (50, 0, "list"),                  # fixed 50-token cost
     "lightningdeal_single": (1, 0, "deal"),        # single ASIN lookup
@@ -29,8 +39,17 @@ TOKEN_COST = {
 
 
 def estimate_tokens(operation, units=1):
-    """Rough pre-flight estimate. Real cost always comes from tokensConsumed."""
-    base, per_unit, _label = TOKEN_COST.get(operation, (0, 0, "unit"))
+    """
+    Rough pre-flight estimate. Real cost always comes from tokensConsumed.
+    For "sellerquery" and "query", units that aren't an exact multiple of
+    100 still round UP to the next 100 per Keepa's own "rounded up" billing
+    -- estimate_tokens("sellerquery", 150) charges for 200, not 150.
+    """
+    base, per_unit, unit_label = TOKEN_COST.get(operation, (0, 0, "unit"))
+    if per_unit and "100" in unit_label:
+        import math
+        units = math.ceil(units / 100) * 100 if units > 100 else 100
+        return base + per_unit * (units // 100)
     return base + per_unit * units
 
 

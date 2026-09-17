@@ -77,6 +77,16 @@ def index_for_key(key):
     return _KEY_TO_INDEX.get(key.upper())
 
 
+# Valid priceTypes for a Browsing Deals request, confirmed against
+# keepa.com/api-docs/deals.html -- RATING/COUNT_* indices are not
+# deal-relevant and silently return empty/wrong results if sent there.
+DEAL_RELEVANT_INDICES = {0, 1, 2, 3, 5, 6, 7, 8, 9, 10, 18, 19, 20, 21, 22, 27, 32, 33}
+
+
+def is_deal_relevant(index):
+    return index in DEAL_RELEVANT_INDICES
+
+
 def decode_value(index, raw_value):
     """
     A csv value of -1 means "no data" for that point. Prices are stored in

@@ -9,7 +9,7 @@ so callers never have to know the request was combined.
 import frappe
 
 from alaiy_os_connector_keepa.keepa.cache import get_cached, set_cached
-from alaiy_os_connector_keepa.keepa.client import KeepaClient
+from alaiy_os_connector_keepa.keepa.client import KeepaClient, keepa_minutes_to_datetime
 from alaiy_os_connector_keepa.keepa.csv_types import (
     PRICE_TYPE_AMAZON,
     PRICE_TYPE_BSR,
@@ -20,7 +20,14 @@ from alaiy_os_connector_keepa.keepa.csv_types import (
     PRICE_TYPE_REVIEW_COUNT,
     index_for_key,
 )
-from alaiy_os_connector_keepa.keepa.history import last_n_days, min_max_from_stats, series_as_chart
+from alaiy_os_connector_keepa.keepa.history import (
+    buy_box_stats,
+    last_n_days,
+    min_max_from_stats,
+    series_as_chart,
+    stats_summary_for_index,
+)
+from alaiy_os_connector_keepa.keepa.offers import decode_offers
 
 _PRICE_TYPE_ALIASES = {
     "amazon": PRICE_TYPE_AMAZON,
@@ -108,7 +115,8 @@ def get_price_history(asin, marketplace=None, price_type="buy_box", days=None):
     chart = series_as_chart(product.get("csv") or [], index)
     chart["points"] = last_n_days(chart["points"], days)
     min_point, max_point = min_max_from_stats(product.get("stats"), index)
-    chart.update({"asin": asin, "found": True, "min": min_point, "max": max_point})
+    stats = stats_summary_for_index(product.get("stats"), index)
+    chart.update({"asin": asin, "found": True, "min": min_point, "max": max_point, "stats": stats})
     return chart
 
 
@@ -145,22 +153,38 @@ def get_review_history(asin, marketplace=None, days=None):
     return {"asin": asin, "found": True, "reviews": reviews, "rating": rating}
 
 
-_IMAGE_BASE_URL = "https://images-na.ssl-images-amazon.com/images/I/"
+_IMAGE_BASE_URL = "https://m.media-amazon.com/images/I/"
+
+
+def _extract_images(product):
+    """
+    Product.java marks `imagesCSV` @deprecated in favour of `images` (an
+    array of {l,lH,lW,m,mH,mW,...} objects -- l/m are large/medium
+    filenames). A product that only populates the new `images` field would
+    silently return zero images if we only read the deprecated CSV string,
+    so `images` is read first and `imagesCSV` only as a fallback for
+    whatever legacy data still uses it.
+    """
+    images = product.get("images") or []
+    if images:
+        return [f"{_IMAGE_BASE_URL}{img.get('l') or img.get('m')}" for img in images if img.get("l") or img.get("m")]
+    legacy_csv = product.get("imagesCSV") or ""
+    return [f"{_IMAGE_BASE_URL}{code}" for code in legacy_csv.split(",") if code]
 
 
 def get_product_details(asin, marketplace=None):
     """
     Static product metadata -- title, brand, images, categories, features,
-    description, identifiers, dimensions. Not one of the 7 whitelisted
-    time-series methods, but the fields issue #297 lists under "Key product
-    fields" and useful context alongside any chart Ask Alaiy renders.
+    description, identifiers, dimensions, variations. Not one of the 7
+    whitelisted time-series methods, but the fields issue #297 lists under
+    "Key product fields" and useful context alongside any chart Ask Alaiy
+    renders. None of this costs extra tokens -- it's all on the same
+    product object already fetched for the history/stats calls.
     """
     products = get_products(asin, domain=marketplace)
     product = products.get(asin.strip().upper())
     if not product:
         return {"asin": asin, "found": False}
-
-    images = [f"{_IMAGE_BASE_URL}{code}" for code in (product.get("imagesCSV") or "").split(",") if code]
 
     return {
         "asin": asin,
@@ -168,16 +192,35 @@ def get_product_details(asin, marketplace=None):
         "title": product.get("title"),
         "brand": product.get("brand"),
         "manufacturer": product.get("manufacturer"),
-        "images": images,
+        "model": product.get("model"),
+        "color": product.get("color"),
+        "size": product.get("size"),
+        "images": _extract_images(product),
         "categories": product.get("categories") or [],
+        "root_category": product.get("rootCategory"),
         "features": product.get("features") or [],
         "description": product.get("description"),
         "upc_list": product.get("upcList") or [],
         "ean_list": product.get("eanList") or [],
+        "gtin_list": product.get("gtinList") or [],
         "package_weight_g": product.get("packageWeight"),
+        "package_length_mm": product.get("packageLength"),
+        "package_width_mm": product.get("packageWidth"),
+        "package_height_mm": product.get("packageHeight"),
+        "package_quantity": product.get("packageQuantity"),
+        "item_weight_g": product.get("itemWeight"),
         "item_height_mm": product.get("itemHeight"),
         "item_length_mm": product.get("itemLength"),
         "item_width_mm": product.get("itemWidth"),
+        "parent_asin": product.get("parentAsin"),
+        "variation_asins": [v.get("asin") for v in (product.get("variations") or []) if v.get("asin")],
+        "monthly_sold": product.get("monthlySold"),
+        "tracking_since": keepa_minutes_to_datetime(product.get("trackingSince")).isoformat()
+        if product.get("trackingSince") else None,
+        "listed_since": keepa_minutes_to_datetime(product.get("listedSince")).isoformat()
+        if product.get("listedSince") else None,
+        "last_update": keepa_minutes_to_datetime(product.get("lastUpdate")).isoformat()
+        if product.get("lastUpdate") else None,
     }
 
 
@@ -204,8 +247,9 @@ def get_current_offers(asin, marketplace=None, max_offers=20, force_refresh=Fals
         result = {
             "asin": asin,
             "found": True,
-            "offers": product.get("offers", []),
+            "offers": decode_offers(product.get("offers")),
             "buy_box_seller_id_history": product.get("buyBoxSellerIdHistory"),
+            "buy_box": buy_box_stats(product.get("stats")),
         }
     set_cached(asin, domain, "offers", result, tokens_spent=response.get("tokensConsumed", 0))
     return result

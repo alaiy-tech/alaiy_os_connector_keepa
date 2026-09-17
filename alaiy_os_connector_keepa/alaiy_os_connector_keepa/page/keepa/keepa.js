@@ -130,9 +130,9 @@ class KeepaTestPage {
     const offers = {
       found: true,
       offers: [
-        { sellerId: "A1DEMO0000001", offerCSV: [0, 8699], condition: 1, isFBA: true },
-        { sellerId: "A1DEMO0000002", offerCSV: [0, 9199], condition: 1, isFBA: false },
-        { sellerId: "A1DEMO0000003", offerCSV: [0, 7999], condition: 2, isFBA: true },
+        { seller_id: "A1DEMO0000001", price: 86.99, shipping: 0, condition: "New", is_fba: true, is_fresh: true },
+        { seller_id: "A1DEMO0000002", price: 91.99, shipping: 4.99, condition: "New", is_fba: false, is_fresh: true },
+        { seller_id: "A1DEMO0000003", price: 79.99, shipping: 0, condition: "Used - Like New", is_fba: true, is_fresh: false },
       ],
     };
 
@@ -276,18 +276,22 @@ class KeepaTestPage {
       $t.html('<div class="text-muted">No live offers data.</div>');
       return;
     }
+    // Offers are already decoded server-side (keepa/offers.py) -- real
+    // price/shipping pulled from offerCSV, condition as a label, freshness
+    // flagged, not the raw Keepa offer object.
     const rows = offers.offers.slice(0, 10).map((o) => {
-      const price = o.offerCSV && o.offerCSV.length ? o.offerCSV[o.offerCSV.length - 1] / 100 : null;
-      return `<tr>
-        <td>${o.sellerId ? frappe.utils.escape_html(o.sellerId) : "--"}</td>
-        <td>${price != null ? _format_price(price) : "--"}</td>
-        <td>${o.condition != null ? o.condition : "--"}</td>
-        <td>${o.isFBA ? "FBA" : "FBM"}</td>
+      const staleBadge = o.is_fresh ? "" : ` <span class="text-muted small">(stale)</span>`;
+      return `<tr class="${o.is_fresh ? "" : "text-muted"}">
+        <td>${o.seller_id ? frappe.utils.escape_html(o.seller_id) : "--"}</td>
+        <td>${o.price != null ? _format_price(o.price) : "--"}</td>
+        <td>${o.shipping != null ? _format_price(o.shipping) : (o.shipping === 0 ? "Free" : "--")}</td>
+        <td>${frappe.utils.escape_html(o.condition)}</td>
+        <td>${o.is_fba ? "FBA" : "FBM"}${staleBadge}</td>
       </tr>`;
     });
     $t.html(`
       <table class="table table-condensed">
-        <thead><tr><th>Seller</th><th>Price</th><th>Condition</th><th>Fulfillment</th></tr></thead>
+        <thead><tr><th>Seller</th><th>Price</th><th>Shipping</th><th>Condition</th><th>Fulfillment</th></tr></thead>
         <tbody>${rows.join("")}</tbody>
       </table>
     `);

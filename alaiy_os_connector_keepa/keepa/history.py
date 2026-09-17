@@ -72,6 +72,57 @@ def min_max_from_stats(stats, index):
     return _point("min"), _point("max")
 
 
+def stats_summary_for_index(stats, index):
+    """
+    The parts of Keepa's `stats` object relevant to one csv-type index:
+    current/avg/avg30/90/180/365 (weighted means) plus is-lowest flags,
+    all decoded through the same price/rating scaling as history points.
+    None-safe: only populated when the product() call passed `stats`.
+    """
+    if not stats:
+        return {}
+
+    def _single(key):
+        arr = stats.get(key)
+        if not arr or index >= len(arr) or arr[index] in (None, -1):
+            return None
+        return decode_value(index, arr[index])
+
+    def _bool_at(key):
+        arr = stats.get(key)
+        if not arr or index >= len(arr):
+            return None
+        return bool(arr[index])
+
+    return {
+        "current": _single("current"),
+        "avg": _single("avg"),
+        "avg30": _single("avg30"),
+        "avg90": _single("avg90"),
+        "avg180": _single("avg180"),
+        "avg365": _single("avg365"),
+        "is_lowest": _bool_at("isLowest"),
+        "is_lowest_90": _bool_at("isLowest90"),
+    }
+
+
+def buy_box_stats(stats):
+    """
+    Buy-box-specific stats fields live at the top level of `stats`, not
+    per-csv-index -- buyBoxPrice/buyBoxShipping/stockBuyBox/stockAmazon/
+    totalOfferCount are single scalars on the stats object itself.
+    """
+    if not stats:
+        return {}
+    return {
+        "buy_box_price": (stats.get("buyBoxPrice") / 100.0) if stats.get("buyBoxPrice", -2) not in (-1, -2, None) else None,
+        "buy_box_shipping": (stats.get("buyBoxShipping") / 100.0) if stats.get("buyBoxShipping", -2) not in (-1, -2, None) else None,
+        "stock_buy_box": stats.get("stockBuyBox") if stats.get("stockBuyBox", -2) not in (-2, None) else None,
+        "stock_amazon": stats.get("stockAmazon") if stats.get("stockAmazon", -2) not in (-2, None) else None,
+        "total_offer_count": stats.get("totalOfferCount") if stats.get("totalOfferCount", -2) not in (-2, None) else None,
+    }
+
+
 def last_n_days(points, days):
     """Filter already-parsed points to the last N days. None-safe on days."""
     if not days:

@@ -7,11 +7,14 @@ from alaiy_os_connector_keepa.keepa import tracking as _tracking
 
 
 @frappe.whitelist()
-def add_tracking(asin, marketplace=None, desired_price=None, price_type="buy_box", list_name=None):
+def add_tracking(asin, marketplace=None, desired_price=None, price_type="buy_box",
+                  is_drop=True, list_name=None, update_interval=1, ttl=None):
     return _tracking.add_tracking(
-        asin, marketplace=marketplace,
+        asin, marketplace=int(marketplace) if marketplace else None,
         desired_price=float(desired_price) if desired_price else None,
-        price_type=price_type, list_name=list_name,
+        price_type=price_type, is_drop=frappe.utils.cint(is_drop),
+        list_name=list_name, update_interval=frappe.utils.cint(update_interval) or 1,
+        ttl=int(ttl) if ttl else None,
     )
 
 

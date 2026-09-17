@@ -189,7 +189,8 @@ class KeepaClient:
         return self._request("token", {})
 
     def product(self, asins, domain=None, stats=None, offers=None, rating=True,
-                buybox=False, history=True, days=None, update=None):
+                buybox=False, history=True, days=None, update=None,
+                only_live_offers=None, videos=False, aplus=False, stock=False):
         """
         Core product lookup. Up to 100 ASINs per call (comma-separated).
         `rating=True` costs nothing extra and is the only way to get
@@ -213,14 +214,28 @@ class KeepaClient:
             params["days"] = days
         if update is not None:
             params["update"] = update
+        if only_live_offers is not None:
+            params["only-live-offers"] = 1 if only_live_offers else 0
+        if videos:
+            params["videos"] = 1
+        if aplus:
+            params["aplus"] = 1
+        if stock:
+            params["stock"] = 1
         return self._request("product", params)
 
-    def search_products(self, term, domain=None, asins_only=True, stats=None):
+    def search_products(self, term, domain=None, asins_only=True, stats=None, history=None, rating=None, update=None):
         """
         Real keyword product search (/search?type=product) -- confirmed
         against keepa.com/api-docs/product-search.html. Distinct from
         Product Finder (/query below), which matches on attributes, not
         free-text terms. Costs 10 tokens per result page.
+
+        Hard-capped at 20 results per term by Keepa itself -- there is no
+        page/offset/limit/cursor param on this endpoint (re-confirmed
+        directly against the endpoint's own doc page), so callers needing
+        more than 20 matches must switch to Product Finder (query()) with
+        a title filter instead of expecting this to paginate.
         """
         params = {
             "type": "product",
@@ -230,15 +245,38 @@ class KeepaClient:
         }
         if stats is not None:
             params["stats"] = stats
+        if history is not None:
+            params["history"] = 1 if history else 0
+        if rating is not None:
+            params["rating"] = 1 if rating else 0
+        if update is not None:
+            params["update"] = update
         return self._request("search", params)
 
     def search_categories(self, term, domain=None):
-        """Search Amazon's category tree by name."""
+        """
+        Search Amazon's category tree by name. No `parents` param exists on
+        this endpoint (re-confirmed directly against its own doc page --
+        that's only a real param on category_lookup below); only key,
+        domain, type, term.
+        """
         return self._request("search", {"type": "category", "term": term, "domain": domain or self.default_domain})
 
-    def category_lookup(self, category_id, domain=None):
-        """Category tree navigation -- parents/children of a category node."""
-        return self._request("category", {"category": category_id, "domain": domain or self.default_domain})
+    def category_lookup(self, category_ids, domain=None, parents=False):
+        """
+        Category tree navigation. `parents` is a REQUIRED param on the real
+        endpoint (confirmed against keepa.com/api-docs/category-lookup.html),
+        not optional as an earlier version of this client assumed -- pass
+        0 explicitly rather than omitting it. `category_ids` accepts up to
+        10 comma-separated IDs in one call (flat 1-token cost for the whole
+        batch, same as a single lookup) or "0" for all root categories.
+        """
+        if isinstance(category_ids, (list, tuple, set)):
+            category_ids = ",".join(str(c) for c in list(category_ids)[:10])
+        return self._request("category", {
+            "category": category_ids, "domain": domain or self.default_domain,
+            "parents": 1 if parents else 0,
+        })
 
     def query(self, product_params, domain=None, n_products=50):
         """
