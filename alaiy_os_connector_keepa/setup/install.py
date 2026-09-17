@@ -36,6 +36,15 @@ def sync_connector_registry():
     Called from hooks.py -> after_migrate on every bench migrate. Idempotent.
     """
     _fix_settings_as_single()
+    _backfill_singles_defaults(
+        "Keepa Connector Settings",
+        [
+            "keepa_history_cache_hours",
+            "keepa_offers_cache_hours",
+            "keepa_default_domain",
+            "keepa_watchlist_sync_interval",
+        ],
+    )
 
     if not frappe.db.exists("DocType", "OS Connector Registry"):
         return
