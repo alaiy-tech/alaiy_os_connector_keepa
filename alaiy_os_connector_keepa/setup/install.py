@@ -36,14 +36,13 @@ def sync_connector_registry():
     Called from hooks.py -> after_migrate on every bench migrate. Idempotent.
     """
     _fix_settings_as_single()
-    _backfill_singles_defaults(
+    _backfill_zero_numeric_fields(
         "Keepa Connector Settings",
-        [
-            "keepa_history_cache_hours",
-            "keepa_offers_cache_hours",
-            "keepa_default_domain",
-            "keepa_watchlist_sync_interval",
-        ],
+        {
+            "keepa_history_cache_hours": 6,
+            "keepa_offers_cache_hours": 1,
+            "keepa_default_domain": 1,
+        },
     )
 
     if not frappe.db.exists("DocType", "OS Connector Registry"):
@@ -139,6 +138,27 @@ def _backfill_singles_defaults(doctype, fieldnames):
         if not field or field.default in (None, ""):
             continue
         frappe.db.set_single_value(doctype, fieldname, field.default)
+    frappe.db.commit()
+
+
+def _backfill_zero_numeric_fields(doctype, field_defaults):
+    """
+    Frappe writes every field on a Single's first save -- including ones
+    the user never touched -- as its fieldtype's zero-value (0 for
+    Int/Float), not the DocType JSON's `default`. So _backfill_singles_defaults'
+    existence check (row present in tabSingles) is already true the moment
+    someone saves the form once, and a genuinely-required numeric field is
+    left sitting at 0 forever instead of its intended default.
+
+    Safe here specifically because none of these fields are Check fields
+    (where "explicitly 0" is a real, meaningful value) -- for a required
+    Int/Float that must be a positive number, a stored 0 is unambiguously
+    "never really set", so overwriting it is correct.
+    """
+    for fieldname, default_value in field_defaults.items():
+        current = frappe.db.get_single_value(doctype, fieldname)
+        if not current:
+            frappe.db.set_single_value(doctype, fieldname, default_value)
     frappe.db.commit()
 
 
