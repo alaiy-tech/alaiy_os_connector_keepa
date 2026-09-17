@@ -1,4 +1,4 @@
-frappe.pages["keepa-test"].on_page_load = function (wrapper) {
+frappe.pages["keepa"].on_page_load = function (wrapper) {
   const page = frappe.ui.make_app_page({
     parent: wrapper,
     title: "Keepa Test",

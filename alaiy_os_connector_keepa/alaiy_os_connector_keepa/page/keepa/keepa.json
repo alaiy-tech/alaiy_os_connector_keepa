@@ -1,8 +1,8 @@
 {
   "doctype": "Page",
   "module": "Alaiy Os Connector Keepa",
-  "name": "keepa-test",
-  "page_name": "keepa-test",
+  "name": "keepa",
+  "page_name": "keepa",
   "standard": "Yes",
   "system_page": 0,
   "title": "Keepa Test",
