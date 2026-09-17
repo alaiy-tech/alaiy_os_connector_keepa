@@ -38,10 +38,13 @@ class KeepaTestPage {
           <div class="input-group">
             <input type="text" class="form-control" id="keepa-test-asin" placeholder="e.g. B0F3GWXLTS">
             <span class="input-group-btn">
-              <button class="btn btn-primary" id="keepa-test-load">Load</button>
+              <button class="btn btn-primary" id="keepa-test-load">Load (~5 tokens)</button>
             </span>
           </div>
         </div>
+        <button class="btn btn-default btn-xs" id="keepa-test-demo" style="margin-bottom: 12px;">
+          Load Demo Data (0 tokens -- fake sample, checks the UI only)
+        </button>
 
         <div id="keepa-test-loading" class="text-muted" style="display:none;">Loading (1 token per method, ~6 tokens total)...</div>
         <div id="keepa-test-error" class="text-danger" style="display:none;"></div>
@@ -84,9 +87,63 @@ class KeepaTestPage {
     `);
 
     this.$body.find("#keepa-test-load").on("click", () => this.load());
+    this.$body.find("#keepa-test-demo").on("click", () => this.load_demo());
     this.$body.find("#keepa-test-asin").on("keypress", (e) => {
       if (e.which === 13) this.load();
     });
+  }
+
+  load_demo() {
+    // Entirely client-side, shaped exactly like the real whitelisted
+    // responses -- zero backend calls, zero tokens, ever. Only use to
+    // check the page itself renders correctly before spending anything.
+    const now = new Date();
+    const daysAgo = (n) => new Date(now.getTime() - n * 86400000).toISOString();
+    const details = {
+      asin: "DEMO000001",
+      found: true,
+      title: "Demo Product -- Wireless Noise Cancelling Headphones",
+      brand: "DemoBrand",
+      manufacturer: "DemoBrand Inc.",
+      images: [],
+      upc_list: ["012345678905"],
+    };
+    const price = {
+      found: true,
+      points: [30, 25, 20, 15, 10, 5, 0].map((d, i) => ({
+        time: daysAgo(d),
+        value: 89.99 - i * 3 + (i % 2 === 0 ? 4 : 0),
+      })),
+    };
+    const bsr = {
+      found: true,
+      points: [30, 25, 20, 15, 10, 5, 0].map((d, i) => ({
+        time: daysAgo(d),
+        value: 4200 - i * 250,
+      })),
+    };
+    const reviews = {
+      found: true,
+      rating: { points: [30, 15, 0].map((d) => ({ time: daysAgo(d), value: 4.3 })) },
+      reviews: { points: [30, 15, 0].map((d, i) => ({ time: daysAgo(d), value: 1180 + i * 40 })) },
+    };
+    const offers = {
+      found: true,
+      offers: [
+        { sellerId: "A1DEMO0000001", offerCSV: [0, 8699], condition: 1, isFBA: true },
+        { sellerId: "A1DEMO0000002", offerCSV: [0, 9199], condition: 1, isFBA: false },
+        { sellerId: "A1DEMO0000003", offerCSV: [0, 7999], condition: 2, isFBA: true },
+      ],
+    };
+
+    this.$body.find("#keepa-test-error").hide();
+    this.$body.find("#keepa-test-body").show();
+    this.render_product(details);
+    this.render_stats(price, bsr, reviews);
+    this.render_price_chart(price);
+    this.render_bsr_chart(bsr);
+    this.render_offers(offers);
+    frappe.show_alert({ message: __("Showing demo data -- not real, 0 tokens spent"), indicator: "blue" });
   }
 
   _stat_tile(id, label) {
