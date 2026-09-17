@@ -30,6 +30,23 @@ class KeepaAPIError(Exception):
     """Raised when the API returns an error the caller cannot retry past."""
 
 
+# Keepa's response never names a plan tier, only refillRate -- inferred from
+# Keepa's own published tokens/minute figures per plan (see keepa.com pricing).
+_PLAN_TIER_BY_REFILL_RATE = [
+    (67, "Business"),
+    (22, "Professional"),
+    (5, "Basic"),
+    (0, "Free"),
+]
+
+
+def _infer_plan_tier(refill_rate):
+    for threshold, label in _PLAN_TIER_BY_REFILL_RATE:
+        if refill_rate >= threshold:
+            return label
+    return "Unknown"
+
+
 def keepa_minutes_to_datetime(keepa_minutes):
     """Convert a Keepa-minutes integer to a real UTC datetime. None-safe."""
     if keepa_minutes is None or keepa_minutes < 0:
@@ -119,6 +136,7 @@ class KeepaClient:
             updates["keepa_tokens_left"] = response["tokensLeft"]
         if "refillRate" in response:
             updates["keepa_refill_rate"] = response["refillRate"]
+            updates["keepa_plan_tier"] = _infer_plan_tier(response["refillRate"])
         if "refillIn" in response:
             updates["keepa_refill_in_ms"] = response["refillIn"]
         if not updates:

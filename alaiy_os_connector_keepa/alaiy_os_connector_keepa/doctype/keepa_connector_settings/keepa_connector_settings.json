@@ -40,13 +40,11 @@
       "label": "API Key"
     },
     {
-      "default": "Basic",
-      "description": "Governs the token bucket refill rate used to pace requests (tokens/minute).",
+      "description": "Derived automatically from Refill Rate (tokens/min) after every real API call -- Keepa's own response never names a tier, so this is inferred from published rates (~2=Free, ~5=Basic, ~22=Professional, ~67=Business). Read-only; not something to set by hand.",
       "fieldname": "keepa_plan_tier",
-      "fieldtype": "Select",
-      "label": "Plan Tier",
-      "options": "Free\nBasic\nProfessional\nBusiness",
-      "reqd": 1
+      "fieldtype": "Data",
+      "label": "Plan Tier (inferred)",
+      "read_only": 1
     },
     {
       "default": "1",
