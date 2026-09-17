@@ -278,18 +278,28 @@ class KeepaClient:
             "parents": 1 if parents else 0,
         })
 
-    def query(self, product_params, domain=None, n_products=50):
+    def query(self, product_params, domain=None, n_products=50, include_insights=False):
         """
         Product Finder -- search Amazon products by attribute (title, brand,
         category, price/rank ranges, ...), not free-text keyword search
         (that's search_products() above, /search?type=product).
+
+        include_insights sends stats=1 as a URL param (confirmed against
+        product-finder.html: it's outside the selection JSON, unlike every
+        other filter) to get a Search Insights Object back -- costs an
+        EXTRA 30 tokens + 1 per 1,000,000 products matched, on top of the
+        base 10 + 1/100 ASINs. Off by default since that's a real added
+        cost, not something to spend without the caller asking for it.
         """
         payload = dict(product_params)
         payload.setdefault("perPage", n_products)
-        return self._request("query", {
+        params = {
             "domain": domain or self.default_domain,
             "selection": frappe.as_json(payload),
-        })
+        }
+        if include_insights:
+            params["stats"] = 1
+        return self._request("query", params)
 
     def deals(self, deal_params, domain=None):
         """Products with significant recent price/rank changes."""

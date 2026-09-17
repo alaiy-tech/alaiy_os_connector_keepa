@@ -15,11 +15,13 @@ TOKEN_COST = {
     "search_product": (0, 10, "result page"),      # /search?type=product: 10/page
     # Product Finder /query is a DIFFERENT cost model from search_product above
     # (they were wrongly conflated in an earlier version of this table): 10
-    # base tokens + 1 per 100 ASINs in the result set. If the query is run
-    # with stats=1 there is an ADDITIONAL +30 (+1 per 1,000,000 matched
-    # products) not modelled here -- estimate_tokens("query", ...) undercounts
-    # for a stats-enabled Product Finder call; not currently used that way.
+    # base tokens + 1 per 100 ASINs in the result set.
     "query": (10, 1, "100 asins returned"),
+    # find_products(include_insights=True) adds this on top of "query" above --
+    # 30 base + 1 per 1,000,000 products MATCHED (not just returned), so this
+    # entry alone underestimates for a query matching many millions of
+    # products; good enough for a pre-flight sanity check, not exact.
+    "query_insights_surcharge": (30, 0, "insights request"),
     "deal": (0, 5, "150 deals"),                   # 5 tokens per 150 deals returned
     # Re-confirmed directly against category-lookup.html: a batch of up to
     # 10 category IDs, WITH parents=1, is still a flat 1 token -- there is

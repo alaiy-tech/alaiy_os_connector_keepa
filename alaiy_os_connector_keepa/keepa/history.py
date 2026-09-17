@@ -94,6 +94,12 @@ def stats_summary_for_index(stats, index):
             return None
         return bool(arr[index])
 
+    def _out_of_stock_pct(key):
+        arr = stats.get(key)
+        if not arr or index >= len(arr) or arr[index] in (None, -1):
+            return None
+        return arr[index]  # a percentage 0-100, not a price -- no decode_value scaling
+
     return {
         "current": _single("current"),
         "avg": _single("avg"),
@@ -103,6 +109,25 @@ def stats_summary_for_index(stats, index):
         "avg365": _single("avg365"),
         "is_lowest": _bool_at("isLowest"),
         "is_lowest_90": _bool_at("isLowest90"),
+        "out_of_stock_percentage_30": _out_of_stock_pct("outOfStockPercentage30"),
+        "out_of_stock_percentage_90": _out_of_stock_pct("outOfStockPercentage90"),
+    }
+
+
+def sales_velocity_stats(stats):
+    """
+    salesRankDrops30/90/180/365 -- scalar counts on the top-level stats
+    object (not per-csv-index), a rough sales-velocity proxy: more rank
+    drops in a window means more units sold, since a sale is usually what
+    moves the rank.
+    """
+    if not stats:
+        return {}
+    return {
+        "sales_rank_drops_30": stats.get("salesRankDrops30"),
+        "sales_rank_drops_90": stats.get("salesRankDrops90"),
+        "sales_rank_drops_180": stats.get("salesRankDrops180"),
+        "sales_rank_drops_365": stats.get("salesRankDrops365"),
     }
 
 

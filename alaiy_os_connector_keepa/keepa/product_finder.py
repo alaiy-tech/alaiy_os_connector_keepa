@@ -12,10 +12,16 @@ plain base+per-ASIN formula is what actually applies to our calls.
 from alaiy_os_connector_keepa.keepa.client import KeepaClient
 
 
-def find_products(filter_params, marketplace=None, n_products=50):
+def find_products(filter_params, marketplace=None, n_products=50, include_insights=False):
+    """
+    include_insights=True adds a searchInsights aggregate (avg prices,
+    seller/brand mix, rank spread across the whole matched set) at an
+    extra 30+ token cost -- see client.query()'s docstring. Off by default.
+    """
     client = KeepaClient()
-    response = client.query(filter_params, domain=marketplace, n_products=n_products)
+    response = client.query(filter_params, domain=marketplace, n_products=n_products, include_insights=include_insights)
     return {
         "asins": response.get("asinList", []),
         "total_results": response.get("totalResults", 0),
+        "search_insights": response.get("searchInsights") if include_insights else None,
     }

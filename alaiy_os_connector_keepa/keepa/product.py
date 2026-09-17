@@ -24,6 +24,7 @@ from alaiy_os_connector_keepa.keepa.history import (
     buy_box_stats,
     last_n_days,
     min_max_from_stats,
+    sales_velocity_stats,
     series_as_chart,
     stats_summary_for_index,
 )
@@ -122,14 +123,15 @@ def get_price_history(asin, marketplace=None, price_type="buy_box", days=None):
 
 def get_bsr_history(asin, marketplace=None, days=None):
     """Whitelisted: BSR trend, Y-axis inverted (rank 1 = best) for chart rendering."""
-    products = get_products(asin, domain=marketplace)
+    products = get_products(asin, domain=marketplace, stats_days=days or 90)
     product = products.get(asin.strip().upper())
     if not product:
         return {"asin": asin, "found": False, "points": []}
 
     chart = series_as_chart(product.get("csv") or [], PRICE_TYPE_BSR, invert_y=True)
     chart["points"] = last_n_days(chart["points"], days)
-    chart.update({"asin": asin, "found": True})
+    velocity = sales_velocity_stats(product.get("stats"))
+    chart.update({"asin": asin, "found": True, "sales_velocity": velocity})
     return chart
 
 
@@ -215,6 +217,14 @@ def get_product_details(asin, marketplace=None):
         "parent_asin": product.get("parentAsin"),
         "variation_asins": [v.get("asin") for v in (product.get("variations") or []) if v.get("asin")],
         "monthly_sold": product.get("monthlySold"),
+        "buy_box_eligible_offer_counts": product.get("buyBoxEligibleOfferCounts"),
+        "availability_amazon": product.get("availabilityAmazon"),
+        "return_rate": product.get("returnRate"),
+        "is_adult_product": bool(product.get("isAdultProduct")),
+        "category_tree": [
+            {"category_id": c.get("catId"), "name": c.get("name")}
+            for c in (product.get("categoryTree") or [])
+        ],
         "tracking_since": keepa_minutes_to_datetime(product.get("trackingSince")).isoformat()
         if product.get("trackingSince") else None,
         "listed_since": keepa_minutes_to_datetime(product.get("listedSince")).isoformat()
