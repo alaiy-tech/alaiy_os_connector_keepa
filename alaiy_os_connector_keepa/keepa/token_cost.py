@@ -28,6 +28,7 @@ TOKEN_COST = {
     "category": (1, 0, "batch of up to 10 categories"),
     "search_category": (1, 0, "search"),           # /search?type=category: 1/search
     "seller": (0, 1, "seller"),                   # 1 token per requested seller
+    "seller_storefront": (9, 0, "seller with storefront"),  # +9 on top of the base 1, only if data is available
     "sellerquery": (10, 1, "100 sellers returned"),  # 10 base + 1 per 100 sellers (rounded up)
     "bestsellers": (50, 0, "list"),
     "topseller": (50, 0, "list"),                  # fixed 50-token cost

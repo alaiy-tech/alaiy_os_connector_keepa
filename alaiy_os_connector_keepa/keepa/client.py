@@ -297,13 +297,28 @@ class KeepaClient:
         payload.setdefault("domainId", domain or self.default_domain)
         return self._request("deal", {"selection": frappe.as_json(payload)})
 
-    def best_sellers(self, category_id, domain=None, rank_avg_range=0):
-        """Top ASINs in a category by current (or N-day average) sales rank."""
-        return self._request("bestsellers", {
+    def best_sellers(self, category_id, domain=None, rank_avg_range=0, month=None, year=None,
+                      variations=None, sublist=None):
+        """
+        Top ASINs in a category (or product group, via websiteDisplayGroupName)
+        by current/N-day-average/historical-month sales rank. Flat 50 tokens.
+        month/year and rank_avg_range are mutually exclusive per Keepa's own
+        docs (both select which ranking basis to use); same for sublist.
+        """
+        params = {
             "category": category_id,
             "domain": domain or self.default_domain,
             "range": rank_avg_range,
-        })
+        }
+        if month is not None and year is not None:
+            params["month"] = month
+            params["year"] = year
+            params.pop("range", None)
+        if variations is not None:
+            params["variations"] = 1 if variations else 0
+        if sublist is not None:
+            params["sublist"] = 1 if sublist else 0
+        return self._request("bestsellers", params)
 
     def seller(self, seller_ids, domain=None, storefront=False):
         """

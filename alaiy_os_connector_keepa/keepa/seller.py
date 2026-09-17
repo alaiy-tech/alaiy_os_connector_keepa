@@ -5,7 +5,17 @@ from alaiy_os_connector_keepa.keepa.client import KeepaClient
 
 
 def get_seller(seller_id, marketplace=None, storefront=False):
-    """Seller Information -- 1 token per seller, batched up to 100."""
+    """
+    Seller Information -- 1 token per seller, batched up to 100.
+    storefront=True costs +9 tokens (only if data is available) and is NOT
+    allowed together with a batch request -- confirmed against
+    keepa.com/api-docs/seller.html, which documents this as a real
+    request-level error, not a soft warning.
+    """
+    is_batch = isinstance(seller_id, (list, tuple, set))
+    if storefront and is_batch:
+        raise ValueError("storefront=True cannot be combined with a batch seller_id request.")
+
     client = KeepaClient()
     response = client.seller(seller_id, domain=marketplace, storefront=storefront)
     sellers = response.get("sellers") or {}

@@ -15,7 +15,22 @@ def get_category(category_ids, marketplace=None, parents=False):
     client = KeepaClient()
     response = client.category_lookup(category_ids, domain=marketplace, parents=parents)
     categories = response.get("categories") or {}
+    # categoryParents is only present when parents=1 was requested -- the
+    # full tree from each looked-up category up to the root, keyed the
+    # same way as categories itself.
+    category_parents = response.get("categoryParents") or {}
 
     if is_batch:
-        return {cid: categories.get(str(cid)) or {"categoryId": cid, "found": False} for cid in category_ids}
-    return categories.get(str(category_ids)) or {"categoryId": category_ids, "found": False}
+        result = {cid: categories.get(str(cid)) or {"categoryId": cid, "found": False} for cid in category_ids}
+    else:
+        result = categories.get(str(category_ids)) or {"categoryId": category_ids, "found": False}
+
+    if parents:
+        if is_batch:
+            for cid in category_ids:
+                if isinstance(result.get(cid), dict):
+                    result[cid]["parents"] = category_parents
+        elif isinstance(result, dict):
+            result["parents"] = category_parents
+
+    return result
