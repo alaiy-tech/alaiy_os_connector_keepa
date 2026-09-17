@@ -1,0 +1,97 @@
+{
+  "autoname": "field:asin",
+  "creation": "2026-09-17 00:00:00.000000",
+  "docstatus": 0,
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "asin",
+    "domain",
+    "label",
+    "is_active",
+    "last_synced_at",
+    "last_price",
+    "last_bsr",
+    "last_rating"
+  ],
+  "fields": [
+    {
+      "fieldname": "asin",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "label": "ASIN",
+      "reqd": 1,
+      "unique": 1
+    },
+    {
+      "default": "1",
+      "description": "1=US 2=UK 3=DE 4=FR 5=JP 6=CA 8=IT 9=ES 10=IN 11=MX",
+      "fieldname": "domain",
+      "fieldtype": "Int",
+      "label": "Domain",
+      "reqd": 1
+    },
+    {
+      "fieldname": "label",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "label": "Label"
+    },
+    {
+      "default": "1",
+      "fieldname": "is_active",
+      "fieldtype": "Check",
+      "in_list_view": 1,
+      "label": "Active"
+    },
+    {
+      "fieldname": "last_synced_at",
+      "fieldtype": "Datetime",
+      "in_list_view": 1,
+      "label": "Last Synced At",
+      "read_only": 1
+    },
+    {
+      "fieldname": "last_price",
+      "fieldtype": "Currency",
+      "label": "Last Buy Box Price",
+      "read_only": 1
+    },
+    {
+      "fieldname": "last_bsr",
+      "fieldtype": "Int",
+      "label": "Last BSR",
+      "read_only": 1
+    },
+    {
+      "fieldname": "last_rating",
+      "fieldtype": "Float",
+      "label": "Last Rating",
+      "read_only": 1
+    }
+  ],
+  "links": [],
+  "modified": "2026-09-17 00:00:00.000000",
+  "modified_by": "Administrator",
+  "module": "Alaiy Os Connector Keepa",
+  "name": "Keepa Watchlist Item",
+  "owner": "Administrator",
+  "permissions": [
+    {
+      "create": 1,
+      "delete": 1,
+      "email": 1,
+      "export": 1,
+      "print": 1,
+      "read": 1,
+      "report": 1,
+      "role": "System Manager",
+      "share": 1,
+      "write": 1
+    }
+  ],
+  "sort_field": "modified",
+  "sort_order": "DESC",
+  "states": [],
+  "track_changes": 0
+}

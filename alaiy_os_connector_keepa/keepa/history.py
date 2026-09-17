@@ -1,0 +1,82 @@
+# Copyright (c) 2026, Alaiy and contributors
+# For license information, please see license.txt
+"""
+Parse a Keepa product's `csv` field (list of 30+ flat [time, value, time,
+value, ...] arrays, one per price type) into per-index time-series usable
+directly by Ask Alaiy's chart rendering.
+"""
+
+from alaiy_os_connector_keepa.keepa.client import keepa_minutes_to_datetime
+from alaiy_os_connector_keepa.keepa.csv_types import decode_value, label_for
+
+
+def parse_series(csv_array, index):
+    """
+    Return [{"time": iso_datetime, "value": decoded_value}, ...] for one
+    price-type index out of a product's `csv` array. Keepa flattens each
+    series as alternating [time, value] pairs; a raw value of -1 means "no
+    data at that point" and is skipped rather than plotted as zero.
+    """
+    if not csv_array or index >= len(csv_array):
+        return []
+    raw = csv_array[index]
+    if not raw:
+        return []
+
+    points = []
+    for i in range(0, len(raw) - 1, 2):
+        keepa_time, value = raw[i], raw[i + 1]
+        if value == -1:
+            continue
+        dt = keepa_minutes_to_datetime(keepa_time)
+        if dt is None:
+            continue
+        points.append({"time": dt.isoformat(), "value": decode_value(index, value)})
+    return points
+
+
+def series_as_chart(csv_array, index, invert_y=False):
+    """
+    Ask Alaiy's chart contract: a labelled time-series ready to render as a
+    line chart. BSR (Sales Rank) charts invert the Y axis since rank 1 is
+    best -- callers pass invert_y=True for that one.
+    """
+    return {
+        "label": label_for(index),
+        "invert_y": invert_y,
+        "points": parse_series(csv_array, index),
+    }
+
+
+def min_max_from_stats(stats, index):
+    """
+    Keepa's own `stats` object (requested via product(stats=N)) carries
+    stats["min"][index] / stats["max"][index] as [keepa_time, value] pairs --
+    the direct answer to "when was the lowest price in the last N days",
+    cheaper and more precise than scanning the full csv history ourselves.
+    None-safe: stats is only present when the product() call passed `stats`.
+    """
+    if not stats:
+        return None, None
+
+    def _point(key):
+        arr = (stats.get(key) or [None] * 40)
+        if index >= len(arr) or not arr[index]:
+            return None
+        keepa_time, value = arr[index]
+        dt = keepa_minutes_to_datetime(keepa_time)
+        if dt is None or value is None:
+            return None
+        return {"time": dt.isoformat(), "value": decode_value(index, value)}
+
+    return _point("min"), _point("max")
+
+
+def last_n_days(points, days):
+    """Filter already-parsed points to the last N days. None-safe on days."""
+    if not days:
+        return points
+    from datetime import datetime, timedelta
+
+    cutoff = datetime.utcnow() - timedelta(days=days)
+    return [p for p in points if datetime.fromisoformat(p["time"]) >= cutoff]

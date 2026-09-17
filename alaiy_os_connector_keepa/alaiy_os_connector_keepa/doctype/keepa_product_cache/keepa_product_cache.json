@@ -1,0 +1,80 @@
+{
+  "autoname": "field:cache_key",
+  "creation": "2026-09-17 00:00:00.000000",
+  "docstatus": 0,
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "cache_key",
+    "asin",
+    "domain",
+    "cache_kind",
+    "fetched_at",
+    "tokens_spent",
+    "raw_response"
+  ],
+  "fields": [
+    {
+      "fieldname": "cache_key",
+      "fieldtype": "Data",
+      "label": "Cache Key",
+      "read_only": 1,
+      "unique": 1,
+      "description": "asin:domain:kind, e.g. B0XXXXXXXX:1:history"
+    },
+    {
+      "fieldname": "asin",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "label": "ASIN",
+      "search_index": 1
+    },
+    {
+      "fieldname": "domain",
+      "fieldtype": "Int",
+      "in_list_view": 1,
+      "label": "Domain"
+    },
+    {
+      "fieldname": "cache_kind",
+      "fieldtype": "Select",
+      "in_list_view": 1,
+      "label": "Kind",
+      "options": "history\noffers\ndeals"
+    },
+    {
+      "fieldname": "fetched_at",
+      "fieldtype": "Datetime",
+      "in_list_view": 1,
+      "label": "Fetched At"
+    },
+    {
+      "default": "0",
+      "fieldname": "tokens_spent",
+      "fieldtype": "Int",
+      "label": "Tokens Spent"
+    },
+    {
+      "fieldname": "raw_response",
+      "fieldtype": "Long Text",
+      "label": "Raw Response (JSON)"
+    }
+  ],
+  "links": [],
+  "modified": "2026-09-17 00:00:00.000000",
+  "modified_by": "Administrator",
+  "module": "Alaiy Os Connector Keepa",
+  "name": "Keepa Product Cache",
+  "owner": "Administrator",
+  "permissions": [
+    {
+      "read": 1,
+      "report": 1,
+      "role": "System Manager"
+    }
+  ],
+  "sort_field": "fetched_at",
+  "sort_order": "DESC",
+  "states": [],
+  "track_changes": 0
+}

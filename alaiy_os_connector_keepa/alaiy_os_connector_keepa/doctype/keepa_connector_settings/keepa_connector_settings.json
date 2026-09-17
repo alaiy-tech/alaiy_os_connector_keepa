@@ -1,0 +1,153 @@
+{
+  "creation": "2026-09-17 00:00:00.000000",
+  "docstatus": 0,
+  "doctype": "DocType",
+  "editable_grid": 1,
+  "engine": "InnoDB",
+  "field_order": [
+    "is_enabled",
+    "sb_connection",
+    "keepa_api_key",
+    "keepa_plan_tier",
+    "keepa_default_domain",
+    "sb_cache",
+    "keepa_history_cache_hours",
+    "keepa_offers_cache_hours",
+    "sb_token_status",
+    "keepa_tokens_left",
+    "keepa_refill_rate",
+    "keepa_refill_in_ms",
+    "keepa_tokens_updated_at",
+    "sb_schedule",
+    "keepa_watchlist_sync_interval"
+  ],
+  "fields": [
+    {
+      "default": "0",
+      "fieldname": "is_enabled",
+      "fieldtype": "Check",
+      "label": "Enable Keepa"
+    },
+    {
+      "fieldname": "sb_connection",
+      "fieldtype": "Section Break",
+      "label": "API Connection"
+    },
+    {
+      "description": "Alaiy's pooled key is used when this is blank on a workspace's own settings (enterprise override).",
+      "fieldname": "keepa_api_key",
+      "fieldtype": "Password",
+      "label": "API Key"
+    },
+    {
+      "default": "Basic",
+      "description": "Governs the token bucket refill rate used to pace requests (tokens/minute).",
+      "fieldname": "keepa_plan_tier",
+      "fieldtype": "Select",
+      "label": "Plan Tier",
+      "options": "Free\nBasic\nProfessional\nBusiness",
+      "reqd": 1
+    },
+    {
+      "default": "1",
+      "description": "Amazon marketplace used when a call does not specify one. 1=US 2=UK 3=DE 4=FR 5=JP 6=CA 8=IT 9=ES 10=IN 11=MX.",
+      "fieldname": "keepa_default_domain",
+      "fieldtype": "Int",
+      "label": "Default Domain",
+      "reqd": 1
+    },
+    {
+      "fieldname": "sb_cache",
+      "fieldtype": "Section Break",
+      "label": "Caching"
+    },
+    {
+      "default": "6",
+      "description": "Price/BSR/review/rating history does not change minute to minute -- a product lookup within this window is served from Keepa Product Cache instead of spending a token.",
+      "fieldname": "keepa_history_cache_hours",
+      "fieldtype": "Float",
+      "label": "History Cache (hours)",
+      "reqd": 1
+    },
+    {
+      "default": "1",
+      "description": "Live offers and deals move faster than history -- cached for a shorter window.",
+      "fieldname": "keepa_offers_cache_hours",
+      "fieldtype": "Float",
+      "label": "Offers/Deals Cache (hours)",
+      "reqd": 1
+    },
+    {
+      "fieldname": "sb_token_status",
+      "fieldtype": "Section Break",
+      "label": "Token Status (live)"
+    },
+    {
+      "description": "Written from the tokensLeft field on every Keepa API response -- the bucket's own authoritative balance, not something computed from Plan Tier.",
+      "fieldname": "keepa_tokens_left",
+      "fieldtype": "Int",
+      "in_list_view": 1,
+      "label": "Tokens Left",
+      "read_only": 1
+    },
+    {
+      "description": "Tokens generated per minute, per the API's own refillRate.",
+      "fieldname": "keepa_refill_rate",
+      "fieldtype": "Int",
+      "label": "Refill Rate (tokens/min)",
+      "read_only": 1
+    },
+    {
+      "description": "Milliseconds until the next refill, per the API's own refillIn.",
+      "fieldname": "keepa_refill_in_ms",
+      "fieldtype": "Int",
+      "label": "Refill In (ms)",
+      "read_only": 1
+    },
+    {
+      "fieldname": "keepa_tokens_updated_at",
+      "fieldtype": "Datetime",
+      "label": "Tokens Last Updated",
+      "read_only": 1
+    },
+    {
+      "fieldname": "sb_schedule",
+      "fieldtype": "Section Break",
+      "label": "Sync Schedule"
+    },
+    {
+      "default": "Disabled",
+      "description": "How often to refresh every ASIN on the watchlist (Keepa Watchlist Item) in the background, independent of on-demand Ask Alaiy queries.",
+      "fieldname": "keepa_watchlist_sync_interval",
+      "fieldtype": "Select",
+      "label": "Watchlist Sync Interval",
+      "options": "Disabled\nHourly\nDaily\nWeekly",
+      "reqd": 1
+    }
+  ],
+  "is_single": 1,
+  "links": [],
+  "modified": "2026-09-17 00:00:00.000000",
+  "modified_by": "Administrator",
+  "module": "Alaiy Os Connector Keepa",
+  "name": "Keepa Connector Settings",
+  "owner": "Administrator",
+  "permissions": [
+    {
+      "create": 1,
+      "delete": 1,
+      "email": 1,
+      "export": 1,
+      "print": 1,
+      "read": 1,
+      "report": 1,
+      "role": "System Manager",
+      "share": 1,
+      "write": 1
+    }
+  ],
+  "sort_field": "modified",
+  "sort_order": "DESC",
+  "states": [],
+  "track_changes": 0
+}
