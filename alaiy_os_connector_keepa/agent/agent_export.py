@@ -95,7 +95,7 @@ TOOLS = [
             + _ERROR_NOTE
         ),
         "handler": f"{_TOOLS}.scan_browse_node",
-        "input_schema": {
+        "parameters_schema": {
             "type": "object",
             "properties": {
                 "browse_node": {
@@ -133,7 +133,7 @@ TOOLS = [
             "category scan is the expensive half. " + _ERROR_NOTE
         ),
         "handler": f"{_TOOLS}.classify_asins",
-        "input_schema": {
+        "parameters_schema": {
             "type": "object",
             "properties": {
                 "asins": {
