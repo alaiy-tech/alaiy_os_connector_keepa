@@ -40,7 +40,7 @@
       "fieldtype": "Select",
       "in_list_view": 1,
       "label": "Kind",
-      "options": "history\noffers\ndeals"
+      "options": "history\noffers\ndeals\ncategory"
     },
     {
       "fieldname": "fetched_at",

@@ -158,7 +158,7 @@ def get_review_history(asin, marketplace=None, days=None):
 _IMAGE_BASE_URL = "https://m.media-amazon.com/images/I/"
 
 
-def _extract_images(product):
+def extract_images(product):
     """
     Product.java marks `imagesCSV` @deprecated in favour of `images` (an
     array of {l,lH,lW,m,mH,mW,...} objects -- l/m are large/medium
@@ -197,7 +197,7 @@ def get_product_details(asin, marketplace=None):
         "model": product.get("model"),
         "color": product.get("color"),
         "size": product.get("size"),
-        "images": _extract_images(product),
+        "images": extract_images(product),
         "categories": product.get("categories") or [],
         "root_category": product.get("rootCategory"),
         "features": product.get("features") or [],

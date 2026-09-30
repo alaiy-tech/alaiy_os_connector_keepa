@@ -13,6 +13,9 @@ from frappe.utils import add_to_date, now_datetime
 
 
 def _ttl_hours(kind):
+    if kind == "category":
+        # Amazon's category tree changes on the scale of months; a month is safe.
+        return 24.0 * 30
     settings = frappe.get_single("Keepa Connector Settings")
     if kind == "history":
         return float(settings.keepa_history_cache_hours or 6)

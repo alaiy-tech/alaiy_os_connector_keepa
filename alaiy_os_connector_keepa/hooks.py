@@ -5,6 +5,12 @@ app_description = "Keepa connector for AlaiyOS -- Amazon price history & product
 app_email = "mail@alaiy.com"
 app_license = "agpl-3.0"
 
+# `alaiy_os_agents` reads this on its own migrate and builds the Amazon Trends agent
+# around what the export declares. The dependency points one way: a bench without that
+# app never reads the hook, and this connector works exactly as it does now minus the
+# ability to be asked questions.
+connector_agents = ["alaiy_os_connector_keepa.agent.agent_export.export"]
+
 # ---------------------------------------------------------------------------
 # Dependencies
 # ---------------------------------------------------------------------------
