@@ -127,6 +127,19 @@ Then, in **Keepa Connector Settings**:
   roughly N tokens/hour; check that against Tokens Left / Refill Rate on
   the settings form before enabling.
 
+## Amazon Trends agent
+
+The connector exports an **Amazon Trends** agent (`connector_agents` hook -> `agent/agent_export.py`) with two tools: `scan_browse_node` (what is moving in one or more browse nodes, optionally narrowed by title keywords) and `classify_asins` (the same verdict for ASINs already chosen).
+
+The agent only exists when both of these hold:
+
+- **`alaiy_os_agents` is installed on the site.** The hook is read only by that app; on a bench without it the export is ignored and the connector behaves exactly as before, minus the agent.
+- **The connector is enabled in the Connector Registry.** Both tools declare `connector: keepa`, and the registry row's `is_enabled` defaults to 0, so the agent will not build until someone switches it on -- even with a valid API key.
+
+**Test Connection** reports both: a successful test returns a `warnings` list and appends the same text to its message when either condition is not met.
+
+A scan spends metered Keepa credit. Category lookups (alias resolution) are cached for a month, so repeat scans of the same nodes pay for the lookup once.
+
 ## File reference
 
 | Path | Role |
@@ -140,8 +153,11 @@ Then, in **Keepa Connector Settings**:
 | `keepa/lightning_deals.py` | Single-ASIN and full-list lightning deals. |
 | `keepa/graph_image.py` | Server-rendered PNG price/rank chart. |
 | `keepa/tracking.py` | Full Tracking API wrapper -- add/remove/get/list trackings, notifications, webhook config. |
+| `keepa/trend_radar.py`, `keepa/trend_filters.py`, `keepa/trend_signals.py` | Trend radar: build the Product Finder query, scan one or more browse nodes, classify each product's rank/price/seller history. |
+| `agent/` | The Amazon Trends agent export and its tools (see above). |
+| `tests/` | Unit tests, including decoding tests against captured Keepa payloads (`tests/fixtures/`). Run: `python -m unittest discover -s alaiy_os_connector_keepa/tests -t .` |
 | `keepa/token_cost.py` | Per-endpoint token cost table + pre-flight balance check, cross-checked against each endpoint's own doc page. |
-| `keepa/cache.py` | `Keepa Product Cache` read/write, TTL-aware. |
+| `keepa/cache.py` | `Keepa Product Cache` read/write, TTL-aware (history, offers, deals, and category lookups). |
 | `keepa/watchlist.py`, `keepa/sync_jobs.py`, `keepa/sync_log.py` | Background watchlist refresh + scheduler + Sync Log lifecycle. |
 | `api/*.py` | Thin `@frappe.whitelist()` wrappers Ask Alaiy and the settings form call -- one file per `keepa/*.py` module above. |
 | `alaiy_os_connector_keepa/doctype/keepa_connector_settings/` | Single DocType: API key, plan tier, domain, cache TTLs, schedule. |

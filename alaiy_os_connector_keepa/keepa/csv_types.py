@@ -87,10 +87,12 @@ def is_deal_relevant(index):
     return index in DEAL_RELEVANT_INDICES
 
 
-def decode_value(index, raw_value):
+def decode_value(index, raw_value, scale=100):
     """
     A csv value of -1 means "no data" for that point. Prices are stored in
-    cents (Amazon's convention); RATING is value*10 (45 -> 4.5).
+    the locale's smallest unit -- `scale` of them to one major unit, 100 for
+    almost every marketplace (see keepa/marketplaces.py); RATING is value*10
+    (45 -> 4.5).
     """
     if raw_value is None or raw_value == -1:
         return None
@@ -101,5 +103,5 @@ def decode_value(index, raw_value):
     if key == "RATING":
         return raw_value / 10.0
     if is_price:
-        return raw_value / 100.0
+        return raw_value / float(scale)
     return raw_value

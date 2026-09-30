@@ -53,12 +53,18 @@ def defaults():
 
 
 @frappe.whitelist(methods=["POST", "GET"])
-def scan(browse_node=None, marketplace=None, limit=None, **payload):
-    """Products in a browse node that are moving, each carrying the signal it fired."""
+def scan(browse_node=None, marketplace=None, limit=None, title=None, **payload):
+    """Products in one or more browse nodes that are moving, each with the signal it fired.
+
+    `browse_node` is an id, a comma-separated string of ids, or a JSON list; `title` is an
+    optional keyword filter (whole words, every one must match).
+    """
     _require_user()
+    if isinstance(browse_node, str) and browse_node.strip().startswith("["):
+        browse_node = json.loads(browse_node)
     if not browse_node:
         frappe.throw(frappe._("Name an Amazon browse node to scan."))
-    return trend_radar.scan(browse_node, domain=marketplace, limit=limit,
+    return trend_radar.scan(browse_node, domain=marketplace, limit=limit, title=title,
                             **_overrides(payload))
 
 
