@@ -18,8 +18,8 @@ scan already paid for, so naming the pattern costs no tokens at all.
 What this module deliberately does NOT do is decide what to source. A radar record says
 a listing is moving and uncontested; whether the bench can supply it, at what landed cost
 and what margin, is a question about a catalogue and a freight table that Keepa knows
-nothing about. That half belongs to whichever app owns the catalogue -- on the NayaGlobal
-bench, `alaiy_os_nayaglobal.trend_radar`, which consumes this.
+nothing about. That half belongs to whichever app owns the catalogue, which consumes
+this.
 """
 
 import re

@@ -3,10 +3,9 @@
 """The Product Finder filter set the trend radar scans with.
 
 Keepa's Product Finder exposes around 120 filters. This is the eight that decide whether
-a scan returns products worth sourcing, with the defaults from the Curation Engine brief
-("Using Keepa as a Trend Radar", 18 Sept 2026) -- expressed as plain named knobs so a
-caller tunes a scan without writing Keepa query syntax, and translated here into the one
-place that does.
+a scan returns products worth sourcing, with the defaults from a sourcing brief --
+expressed as plain named knobs so a caller tunes a scan without writing Keepa query
+syntax, and translated here into the one place that does.
 
 Why these eight, in the brief's own terms: a rank ceiling so the product actually sells;
 rank drops and monthly sales so the demand is sustained rather than a spike; a price band
