@@ -32,19 +32,23 @@ def _summarise(record):
     return slim
 
 
-def scan_browse_node(browse_node=None, marketplace=None, limit=None, max_price=None,
-                     min_price=None, max_rank=None, max_sellers=None):
-    """Products moving in one Amazon browse node, each with the signal it fired."""
-    result = trend_radar.scan(
-        browse_node, domain=marketplace, limit=limit,
-        **{key: value for key, value in {
-            "max_price": max_price, "min_price": min_price,
-            "max_rank": max_rank, "max_sellers": max_sellers,
-        }.items() if value is not None})
+def scan_browse_node(browse_node=None, marketplace=None, limit=None, title=None, **filters):
+    """Products moving in one or more Amazon browse nodes, each with the signal it fired.
+
+    `filters` are any of the `trend_filters.DEFAULTS` knobs. A knob passed as None clears
+    that bound (`max_rank=None` is "any rank"), which is how the model widens a scan that
+    came back empty; a knob left out keeps its default. An unknown name is rejected by
+    `trend_filters.preset` rather than ignored.
+    """
+    result = trend_radar.scan(browse_node, domain=marketplace, limit=limit, title=title,
+                              **filters)
 
     products = [_summarise(p) for p in result["products"][:_MAX_ROWS]]
     return {
         "browse_node": result["browse_node"],
+        "browse_nodes": result["browse_nodes"],
+        "resolved_from": result["resolved_from"],
+        "title": result["title"],
         "marketplace": result["domain"],
         "total_matches": result["total_matches"],
         "returned": len(products),

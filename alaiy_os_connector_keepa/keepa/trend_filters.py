@@ -87,8 +87,13 @@ def preset(**overrides):
     return values
 
 
-def selection(values, browse_node, domain, page=0, per_page=_PAGE_SIZE, extra=None):
-    """A whole Keepa /query selection: the preset, the node, and the page to read.
+def selection(values, browse_node, domain, page=0, per_page=_PAGE_SIZE, extra=None,
+              title=None):
+    """A whole Keepa /query selection: the preset, the node(s), and the page to read.
+
+    `browse_node` is one id or a list of them; Keepa matches a product filed under any.
+    `title` narrows to products whose title contains every keyword, whole words only
+    ("toy" does not match "toys"), case-insensitive.
 
     `categories_include`, not `rootCategory`: rootCategory only ever matches Keepa's
     handful of top-level roots, so passing it a real browse node -- Laptop Accessories,
@@ -100,11 +105,16 @@ def selection(values, browse_node, domain, page=0, per_page=_PAGE_SIZE, extra=No
     `salesRankDrops30` is Keepa's count of days in the last 30 on which the rank improved,
     which is why the brief reads it as consistent velocity rather than a spike: three
     separate days of movement cannot be one afternoon's promotion.
+
+    `singleVariation` returns one variation per listing. Without it the colours and sizes
+    of one listing arrive as separate products and crowd the shortlist.
     """
     scale = minor_units(domain)
+    nodes = browse_node if isinstance(browse_node, (list, tuple, set)) else [browse_node]
     query = {
-        "categories_include": [int(browse_node)],
+        "categories_include": [int(node) for node in nodes],
         "productType": [0],  # physical products only; excludes variation parents
+        "singleVariation": True,
         "sort": [["current_SALES", "asc"]],
         "perPage": per_page,
         "page": page,
@@ -128,6 +138,8 @@ def selection(values, browse_node, domain, page=0, per_page=_PAGE_SIZE, extra=No
                                if values.get("min_rating") else None),
     }
     query.update({key: value for key, value in bounds.items() if value is not None})
+    if title and str(title).strip():
+        query["title"] = str(title).strip()
     # Keepa /query syntax passed through verbatim, for the ~110 filters this preset does
     # not name. Merged last so a caller that wants one of the above set differently gets
     # what it asked for, and never built from unvalidated user input.

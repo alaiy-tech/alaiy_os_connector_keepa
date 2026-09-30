@@ -22,6 +22,9 @@ nothing about. That half belongs to whichever app owns the catalogue -- on the N
 bench, `alaiy_os_nayaglobal.trend_radar`, which consumes this.
 """
 
+import re
+from datetime import datetime, timedelta, timezone
+
 import frappe
 
 from alaiy_os_connector_keepa.keepa import trend_filters, trend_signals
@@ -33,13 +36,15 @@ from alaiy_os_connector_keepa.keepa.csv_types import (
     PRICE_TYPE_RATING,
     PRICE_TYPE_REVIEW_COUNT,
 )
+from alaiy_os_connector_keepa.keepa.category import get_category
 from alaiy_os_connector_keepa.keepa.client import KeepaClient
 from alaiy_os_connector_keepa.keepa.history import (
+    interval_min,
     parse_series,
     sales_velocity_stats,
     stats_summary_for_index,
 )
-from alaiy_os_connector_keepa.keepa.marketplaces import product_url
+from alaiy_os_connector_keepa.keepa.marketplaces import minor_units, product_url
 from alaiy_os_connector_keepa.keepa.product import extract_images, get_products
 
 #: Keepa's count of live new offers -- the "seller count" a crowding signal reads.
@@ -56,9 +61,108 @@ DEFAULT_LIMIT = 50
 _STATS_DAYS = 90
 
 
-def _series(product, index):
+#: What Keepa names a browse alias. Most top-level Amazon categories have one: a node whose
+#: `parent` is the real root and which holds only the few products filed on it directly, so
+#: a Product Finder scan of it matches nothing and still spends tokens. Checked against live
+#: data: every alias carries one of these two names and no real node does. The obvious
+#: alternatives fail -- `name != contextFreeName` also fires on ordinary sub-nodes, and
+#: "parent has the same contextFreeName" misses roots named differently.
+_ALIAS_NAMES = ("Categories", "Products")
+
+
+#: Most nodes one scan may name. Keepa looks up to ten categories for the price of one, so
+#: this is also what keeps alias resolution a single call.
+MAX_NODES = 10
+
+
+def node_ids(browse_node):
+    """The distinct node ids named by an id, a comma- or space-separated string, or a list.
+
+    Order is kept, because the first node is the one a single-node caller thinks of as
+    "the" node.
+    """
+    if isinstance(browse_node, (list, tuple, set)):
+        raw = list(browse_node)
+    else:
+        raw = re.split(r"[,\s]+", str(browse_node or ""))
+    ids = []
+    for item in raw:
+        item = str(item).strip()
+        if item and item not in ids:
+            ids.append(item)
+    if not ids:
+        raise frappe.ValidationError(frappe._("Name an Amazon browse node to scan."))
+    bad = [item for item in ids if not item.isdigit()]
+    if bad:
+        raise frappe.ValidationError(
+            frappe._("Browse node ids are numbers; got {0}.").format(", ".join(bad)))
+    if len(ids) > MAX_NODES:
+        raise frappe.ValidationError(
+            frappe._("A scan takes at most {0} browse nodes.").format(MAX_NODES))
+    return ids
+
+
+def resolve_browse_nodes(nodes, domain):
+    """`(nodes_to_scan, resolved_from)`: each alias replaced by its real root.
+
+    `resolved_from` maps the alias id that was asked for to the root that was scanned in
+    its place, and is empty when no node was an alias. Costs one token for the whole list,
+    and a node the lookup finds nothing for is scanned as given, so a lookup problem never
+    blocks a scan.
+    """
+    categories = get_category(list(nodes), marketplace=domain) or {}
+    scan_nodes, resolved_from = [], {}
+    for node in nodes:
+        category = categories.get(node) or {}
+        parent = category.get("parent")
+        target = str(parent) if category.get("name") in _ALIAS_NAMES and parent else node
+        if target != node:
+            resolved_from[node] = target
+        if target not in scan_nodes:
+            scan_nodes.append(target)
+    return scan_nodes, resolved_from
+
+
+def review_velocity(points, days=_STATS_DAYS, min_span_days=14, now=None):
+    """Reviews arriving per month: the least-squares slope of the review count over the
+    last `days`, scaled to 30.4 days.
+
+    Review count moves before sales rank does, so this is an early demand signal. Keepa
+    records the series only when it changes, so the last value is carried to `now`; without
+    that a listing whose reviews stopped a month ago would fit a steep line through its
+    last few points instead of a flat one. None when the window holds fewer than two
+    points or spans less than `min_span_days` -- a slope fitted to two days is noise.
+    """
+    now = now or datetime.now(timezone.utc).replace(tzinfo=None)
+    cutoff = now - timedelta(days=days)
+    counts = []
+    for point in points or []:
+        value = point.get("value")
+        if value is None or value < 0:
+            continue
+        counts.append((datetime.fromisoformat(point["time"]), float(value)))
+    if not counts:
+        return None
+    counts = [p for p in counts if p[0] >= cutoff]
+    if not counts:
+        return None
+    counts.append((now, counts[-1][1]))
+    if (counts[-1][0] - counts[0][0]).days < min_span_days:
+        return None
+    start = counts[0][0]
+    xs = [(t - start).total_seconds() / 86400 for t, _ in counts]
+    ys = [v for _, v in counts]
+    mean_x, mean_y = sum(xs) / len(xs), sum(ys) / len(ys)
+    spread = sum((x - mean_x) ** 2 for x in xs)
+    if not spread:
+        return None
+    slope = sum((x - mean_x) * (y - mean_y) for x, y in zip(xs, ys)) / spread
+    return round(slope * 30.4, 1)
+
+
+def _series(product, index, scale=100):
     """One decoded history series off a product's csv, newest last."""
-    return parse_series(product.get("csv") or [], index)
+    return parse_series(product.get("csv") or [], index, scale=scale)
 
 
 def _price_index(stats):
@@ -89,8 +193,12 @@ def radar_record(product, domain):
     can only say so if it is handed all three.
     """
     stats = product.get("stats") or {}
+    # Prices are integers in the locale's smallest unit, and how many of those make one
+    # major unit depends on the marketplace (yen has none). Every price read below shares
+    # this scale.
+    scale = minor_units(domain)
     price_index = _price_index(stats)
-    price_stats = stats_summary_for_index(stats, price_index)
+    price_stats = stats_summary_for_index(stats, price_index, scale)
     rank_stats = stats_summary_for_index(stats, PRICE_TYPE_BSR)
     rating = (stats_summary_for_index(stats, PRICE_TYPE_RATING) or {}).get("current")
 
@@ -120,9 +228,12 @@ def radar_record(product, domain):
         "rating": rating,
         "review_count": _positive(
             (stats_summary_for_index(stats, PRICE_TYPE_REVIEW_COUNT) or {}).get("current")),
+        "reviews_per_month": review_velocity(_series(product, PRICE_TYPE_REVIEW_COUNT)),
+        # The lowest price in the stats window (90 days here), not the all-time low.
+        "price_min_90d": interval_min(stats, price_index, scale),
 
         "bsr_history": _series(product, PRICE_TYPE_BSR),
-        "price_history": _series(product, price_index),
+        "price_history": _series(product, price_index, scale),
         "seller_count_history": _series(product, _COUNT_NEW),
         **sales_velocity_stats(stats),
     }
@@ -130,25 +241,36 @@ def radar_record(product, domain):
     return record
 
 
-def scan(browse_node, domain=None, limit=DEFAULT_LIMIT, **filter_overrides):
-    """Scan a browse node and classify everything it returns.
+def scan(browse_node, domain=None, limit=DEFAULT_LIMIT, title=None, **filter_overrides):
+    """Scan one or several browse nodes and classify everything they return.
+
+    `browse_node` is an id, a comma-separated string of ids, or a list (up to
+    `MAX_NODES`); a product filed under any of them matches, which is how "dog toys and
+    cat toys" is asked when no single node covers it. `title` narrows to products whose
+    title contains every keyword (whole words, case-insensitive), for a question no node
+    expresses.
 
     `filter_overrides` are `trend_filters` knobs (max_rank, min_monthly_sold, ...); the
-    defaults are the sourcing preset. Returns `{browse_node, domain, filters,
-    total_matches, returned, products, tokens_left}` with products sorted best signal
+    defaults are the sourcing preset. A browse alias is scanned as its real root (see
+    `resolve_browse_nodes`). Returns `{browse_node, browse_nodes, resolved_from, title,
+    domain, filters, total_matches, returned, products, tokens_left}` with products sorted
+    best signal
     first -- `score` is zero for anything the classifier said to avoid, so a crowded
     listing sorts to the bottom rather than being hidden.
     """
     domain = int(domain or frappe.get_single("Keepa Connector Settings").keepa_default_domain or 1)
     limit = max(1, min(int(limit or DEFAULT_LIMIT), MAX_LIMIT))
     values = trend_filters.preset(**filter_overrides)
+    nodes = node_ids(browse_node)
+    scan_nodes, resolved_from = resolve_browse_nodes(nodes, domain)
+    title = (title or "").strip() or None
 
     client = KeepaClient()
     asins, total, page = [], 0, 0
     while len(asins) < limit:
         response = client.query(
-            trend_filters.selection(values, browse_node, domain, page=page,
-                                    per_page=_PAGE_SIZE),
+            trend_filters.selection(values, scan_nodes, domain, page=page,
+                                    per_page=_PAGE_SIZE, title=title),
             domain=domain, n_products=_PAGE_SIZE)
         found = response.get("asinList") or []
         total = response.get("totalResults") or total
@@ -173,7 +295,13 @@ def scan(browse_node, domain=None, limit=DEFAULT_LIMIT, **filter_overrides):
 
     products.sort(key=lambda p: (-p["score"], p["bsr"] is None, p["bsr"] or 0))
     return {
-        "browse_node": str(browse_node),
+        # The ids scanned: for one node its id, for several the ids joined with commas.
+        "browse_node": ",".join(scan_nodes),
+        "browse_nodes": scan_nodes,
+        # Each alias that was asked for, mapped to the real root scanned in its place, so a
+        # response that names a different node than the request says why.
+        "resolved_from": resolved_from,
+        "title": title,
         "domain": domain,
         "filters": values,
         "total_matches": total,

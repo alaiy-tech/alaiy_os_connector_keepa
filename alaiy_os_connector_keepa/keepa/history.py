@@ -25,7 +25,7 @@ from alaiy_os_connector_keepa.keepa.csv_types import decode_value, label_for
 _STRIDE = {7: 3, 18: 3}
 
 
-def parse_series(csv_array, index, with_shipping=True):
+def parse_series(csv_array, index, with_shipping=True, scale=100):
     """
     Return [{"time": iso_datetime, "value": decoded_value}, ...] for one
     price-type index out of a product's `csv` array. Keepa flattens each
@@ -37,6 +37,9 @@ def parse_series(csv_array, index, with_shipping=True):
     `with_shipping` folds the shipping column into the price, which is what
     "landed price" means on those two types. A shipping column of -1 is
     unknown rather than free, so only a real cost is added.
+
+    `scale` is how many of the locale's smallest currency units make one major unit
+    (`marketplaces.minor_units`); 100 unless the marketplace says otherwise.
     """
     if not csv_array or index >= len(csv_array):
         return []
@@ -53,9 +56,9 @@ def parse_series(csv_array, index, with_shipping=True):
         dt = keepa_minutes_to_datetime(keepa_time)
         if dt is None:
             continue
-        decoded = decode_value(index, value)
+        decoded = decode_value(index, value, scale)
         if with_shipping and stride == 3 and raw[i + 2] > 0 and decoded is not None:
-            shipping = decode_value(index, raw[i + 2])
+            shipping = decode_value(index, raw[i + 2], scale)
             if shipping is not None:
                 decoded = round(decoded + shipping, 2)
         points.append({"time": dt.isoformat(), "value": decoded})
@@ -99,7 +102,7 @@ def min_max_from_stats(stats, index):
     return _point("min"), _point("max")
 
 
-def stats_summary_for_index(stats, index):
+def stats_summary_for_index(stats, index, scale=100):
     """
     The parts of Keepa's `stats` object relevant to one csv-type index:
     current/avg/avg30/90/180/365 (weighted means) plus is-lowest flags,
@@ -113,7 +116,7 @@ def stats_summary_for_index(stats, index):
         arr = stats.get(key)
         if not arr or index >= len(arr) or arr[index] in (None, -1):
             return None
-        return decode_value(index, arr[index])
+        return decode_value(index, arr[index], scale)
 
     def _bool_at(key):
         arr = stats.get(key)
@@ -139,6 +142,22 @@ def stats_summary_for_index(stats, index):
         "out_of_stock_percentage_30": _out_of_stock_pct("outOfStockPercentage30"),
         "out_of_stock_percentage_90": _out_of_stock_pct("outOfStockPercentage90"),
     }
+
+
+def interval_min(stats, index, scale=100):
+    """The lowest value of one csv-type index inside the stats window, decoded, or None.
+
+    `minInInterval` is the minimum over the window the product call asked for (the
+    radar asks for 90 days), which is not the all-time `min`. Each entry is a
+    `[keepa_time, value]` pair, or null when the series has no data in the window.
+    """
+    arr = (stats or {}).get("minInInterval")
+    if not arr or index >= len(arr) or not arr[index]:
+        return None
+    value = arr[index][1]
+    if value in (None, -1):
+        return None
+    return decode_value(index, value, scale)
 
 
 def sales_velocity_stats(stats):

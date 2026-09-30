@@ -53,12 +53,18 @@ def defaults():
 
 
 @frappe.whitelist(methods=["POST", "GET"])
-def scan(browse_node=None, marketplace=None, limit=None, **payload):
-    """Products in a browse node that are moving, each carrying the signal it fired."""
+def scan(browse_node=None, marketplace=None, limit=None, title=None, **payload):
+    """Products in one or more browse nodes that are moving, each with the signal it fired.
+
+    `browse_node` is an id, a comma-separated string of ids, or a JSON list; `title` is an
+    optional keyword filter (whole words, every one must match).
+    """
     _require_user()
+    if isinstance(browse_node, str) and browse_node.strip().startswith("["):
+        browse_node = json.loads(browse_node)
     if not browse_node:
         frappe.throw(frappe._("Name an Amazon browse node to scan."))
-    return trend_radar.scan(browse_node, domain=marketplace, limit=limit,
+    return trend_radar.scan(browse_node, domain=marketplace, limit=limit, title=title,
                             **_overrides(payload))
 
 
@@ -80,12 +86,17 @@ def classify(asins=None, marketplace=None):
 
     domain = int(marketplace or
                  frappe.get_single("Keepa Connector Settings").keepa_default_domain or 1)
-    by_asin = get_products(asins[:trend_radar.MAX_LIMIT], domain=domain)
+    asked = asins[:trend_radar.MAX_LIMIT]
+    by_asin = get_products(asked, domain=domain)
     products = [trend_radar.radar_record(by_asin[a], domain)
-                for a in asins if a in by_asin and by_asin[a].get("title")]
+                for a in asked if a in by_asin and by_asin[a].get("title")]
+    classified = {p["asin"] for p in products}
     return {
         "requested": len(asins),
         "products": products,
         # ASINs Keepa has no record of. That is the answer for them, not a failure.
-        "missing": [a for a in asins if a not in by_asin],
+        # Keepa answers an unknown ASIN with an untitled stub rather than leaving it out,
+        # so "absent from the response" would miss it; "did not come back as a product"
+        # is the test.
+        "missing": [a for a in asked if a not in classified],
     }

@@ -80,18 +80,27 @@ TOOLS = [
     {
         "tool_id": "scan_browse_node",
         "description": (
-            "Scan one Amazon browse node for products that are moving, best signal "
-            "first. Takes `browse_node` (the numeric Amazon category id, required), and "
-            "optionally `marketplace`, `limit`, and the filters `min_price` / "
-            "`max_price` (in the marketplace's currency), `max_rank`, `max_sellers`. "
-            "Returns {browse_node, marketplace, total_matches, returned, filters, "
-            "products, tokens_left}, each product carrying its rank, price, seller "
-            "count, rating, the `signals` it fired and a `verdict` of act, watch or "
-            "avoid. `total_matches` is how many products the node holds under these "
-            "filters and is usually far larger than `returned`. An empty `products` "
-            "means the filters matched nothing, which is an answer -- say which filter "
-            "is likely too tight rather than scanning again. Do NOT call this to check "
-            "a single product you already have an ASIN for: use classify_asins. "
+            "Scan Amazon browse nodes for products that are moving, best signal "
+            "first. Takes `browse_node` (a numeric Amazon category id, required; several "
+            "ids separated by commas scan them together, up to 10), and optionally "
+            "`title` (keywords the product title must contain, whole words only), "
+            "`marketplace`, `limit`, and any of the filters below. A filter left out "
+            "keeps its default; a filter sent as null removes that bound. Use `title` "
+            "or several nodes when no single node matches the question (for example dog "
+            "toys and cat toys, not all of Pet Supplies). "
+            "Returns {browse_node, browse_nodes, resolved_from, title, marketplace, "
+            "total_matches, returned, filters, products, tokens_left}, each product "
+            "carrying its rank, price, seller count, rating, reviews_per_month (reviews "
+            "arriving, an early demand signal), the `signals` it fired and a `verdict` "
+            "of act, watch or avoid. One row per listing: colour and size variations "
+            "are collapsed. `resolved_from` maps an id you passed to the real category "
+            "scanned in its place, when it was an alias for one. `total_matches` is how "
+            "many products the nodes hold under these filters and is usually far larger "
+            "than `returned`. An empty `products` means the filters matched nothing, "
+            "which is an answer -- say which filter is likely too tight and offer to "
+            "widen it by sending that filter as null, rather than scanning again "
+            "unchanged. Do NOT call this to check a single product you already have an "
+            "ASIN for: use classify_asins. "
             + _ERROR_NOTE
         ),
         "handler": f"{_TOOLS}.scan_browse_node",
@@ -100,22 +109,88 @@ TOOLS = [
             "properties": {
                 "browse_node": {
                     "type": "string",
-                    "description": "The numeric Amazon browse node id to scan.",
+                    "description": (
+                        "The numeric Amazon browse node id to scan, or several ids "
+                        "separated by commas (up to 10)."
+                    ),
+                },
+                "title": {
+                    "type": "string",
+                    "description": (
+                        "Keywords the product title must contain, all of them, whole "
+                        "words only (\"toy\" does not match \"toys\")."
+                    ),
                 },
                 "marketplace": _MARKETPLACE,
                 "limit": {
                     "type": "integer",
                     "description": "Products to read, up to 200. Defaults to 50.",
                 },
-                "min_price": {"type": "number", "description": "Lowest buy box price to include."},
-                "max_price": {"type": "number", "description": "Highest buy box price to include."},
+                "min_rank": {
+                    "type": ["integer", "null"],
+                    "description": (
+                        "Best (lowest) sales rank to include. Default 1. Send null to remove this bound."
+                    ),
+                },
                 "max_rank": {
-                    "type": "integer",
-                    "description": "Worst sales rank to include. Lower is better-selling.",
+                    "type": ["integer", "null"],
+                    "description": (
+                        "Worst sales rank to include. Lower is better-selling. Default 50000. Send null to remove this bound."
+                    ),
+                },
+                "min_rank_drops_30d": {
+                    "type": ["integer", "null"],
+                    "description": (
+                        "Fewest days in the last 30 on which the rank improved. Higher means more sustained demand. Default 3. Send null to remove this bound."
+                    ),
+                },
+                "min_monthly_sold": {
+                    "type": ["integer", "null"],
+                    "description": (
+                        "Fewest units Amazon reports bought in the past month. Often absent, so raising it also drops unknowns. Default 100. Send null to remove this bound."
+                    ),
+                },
+                "min_price": {
+                    "type": ["number", "null"],
+                    "description": (
+                        "Lowest buy box price to include, in the marketplace's currency. Default 500. Send null to remove this bound."
+                    ),
+                },
+                "max_price": {
+                    "type": ["number", "null"],
+                    "description": (
+                        "Highest buy box price to include, in the marketplace's currency. Default 5000. Send null to remove this bound."
+                    ),
+                },
+                "min_sellers": {
+                    "type": ["integer", "null"],
+                    "description": (
+                        "Fewest offers a listing may have. Default 1. Send null to remove this bound."
+                    ),
                 },
                 "max_sellers": {
-                    "type": "integer",
-                    "description": "Most offers a listing may have. Fewer means less competition.",
+                    "type": ["integer", "null"],
+                    "description": (
+                        "Most offers a listing may have. Fewer means less competition. Default 5. Send null to remove this bound."
+                    ),
+                },
+                "min_reviews": {
+                    "type": ["integer", "null"],
+                    "description": (
+                        "Fewest reviews. Default 50. Send null to remove this bound."
+                    ),
+                },
+                "max_reviews": {
+                    "type": ["integer", "null"],
+                    "description": (
+                        "Most reviews; a high ceiling admits entrenched listings. Default 2000. Send null to remove this bound."
+                    ),
+                },
+                "min_rating": {
+                    "type": ["number", "null"],
+                    "description": (
+                        "Lowest star rating, e.g. 3.8. Default 3.8. Send null to remove this bound."
+                    ),
                 },
             },
             "required": ["browse_node"],
