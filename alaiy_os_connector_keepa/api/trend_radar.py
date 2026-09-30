@@ -80,12 +80,17 @@ def classify(asins=None, marketplace=None):
 
     domain = int(marketplace or
                  frappe.get_single("Keepa Connector Settings").keepa_default_domain or 1)
-    by_asin = get_products(asins[:trend_radar.MAX_LIMIT], domain=domain)
+    asked = asins[:trend_radar.MAX_LIMIT]
+    by_asin = get_products(asked, domain=domain)
     products = [trend_radar.radar_record(by_asin[a], domain)
-                for a in asins if a in by_asin and by_asin[a].get("title")]
+                for a in asked if a in by_asin and by_asin[a].get("title")]
+    classified = {p["asin"] for p in products}
     return {
         "requested": len(asins),
         "products": products,
         # ASINs Keepa has no record of. That is the answer for them, not a failure.
-        "missing": [a for a in asins if a not in by_asin],
+        # Keepa answers an unknown ASIN with an untitled stub rather than leaving it out,
+        # so "absent from the response" would miss it; "did not come back as a product"
+        # is the test.
+        "missing": [a for a in asked if a not in classified],
     }

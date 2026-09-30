@@ -33,6 +33,7 @@ from alaiy_os_connector_keepa.keepa.csv_types import (
     PRICE_TYPE_RATING,
     PRICE_TYPE_REVIEW_COUNT,
 )
+from alaiy_os_connector_keepa.keepa.category import get_category
 from alaiy_os_connector_keepa.keepa.client import KeepaClient
 from alaiy_os_connector_keepa.keepa.history import (
     parse_series,
@@ -54,6 +55,29 @@ DEFAULT_LIMIT = 50
 #: Stats window. 90 days is what the avg/min/max blocks are computed over, and what the
 #: classifier's short windows are read against.
 _STATS_DAYS = 90
+
+
+#: What Keepa names a browse alias. Most top-level Amazon categories have one: a node whose
+#: `parent` is the real root and which holds only the few products filed on it directly, so
+#: a Product Finder scan of it matches nothing and still spends tokens. Checked against live
+#: data: every alias carries one of these two names and no real node does. The obvious
+#: alternatives fail -- `name != contextFreeName` also fires on ordinary sub-nodes, and
+#: "parent has the same contextFreeName" misses roots named differently.
+_ALIAS_NAMES = ("Categories", "Products")
+
+
+def resolve_browse_node(browse_node, domain):
+    """`(node_to_scan, alias_id)`: the real root when `browse_node` is an alias, else the
+    node itself with `alias_id` None.
+
+    Costs one token, and falls back to scanning the node as given when the lookup finds
+    nothing, so a lookup problem never blocks a scan.
+    """
+    category = get_category(browse_node, marketplace=domain) or {}
+    parent = category.get("parent")
+    if category.get("name") in _ALIAS_NAMES and parent:
+        return str(parent), str(browse_node)
+    return str(browse_node), None
 
 
 def _series(product, index):
@@ -134,7 +158,8 @@ def scan(browse_node, domain=None, limit=DEFAULT_LIMIT, **filter_overrides):
     """Scan a browse node and classify everything it returns.
 
     `filter_overrides` are `trend_filters` knobs (max_rank, min_monthly_sold, ...); the
-    defaults are the sourcing preset. Returns `{browse_node, domain, filters,
+    defaults are the sourcing preset. A browse alias is scanned as its real root (see
+    `resolve_browse_node`). Returns `{browse_node, resolved_from, domain, filters,
     total_matches, returned, products, tokens_left}` with products sorted best signal
     first -- `score` is zero for anything the classifier said to avoid, so a crowded
     listing sorts to the bottom rather than being hidden.
@@ -142,12 +167,13 @@ def scan(browse_node, domain=None, limit=DEFAULT_LIMIT, **filter_overrides):
     domain = int(domain or frappe.get_single("Keepa Connector Settings").keepa_default_domain or 1)
     limit = max(1, min(int(limit or DEFAULT_LIMIT), MAX_LIMIT))
     values = trend_filters.preset(**filter_overrides)
+    scan_node, alias_of = resolve_browse_node(browse_node, domain)
 
     client = KeepaClient()
     asins, total, page = [], 0, 0
     while len(asins) < limit:
         response = client.query(
-            trend_filters.selection(values, browse_node, domain, page=page,
+            trend_filters.selection(values, scan_node, domain, page=page,
                                     per_page=_PAGE_SIZE),
             domain=domain, n_products=_PAGE_SIZE)
         found = response.get("asinList") or []
@@ -173,7 +199,10 @@ def scan(browse_node, domain=None, limit=DEFAULT_LIMIT, **filter_overrides):
 
     products.sort(key=lambda p: (-p["score"], p["bsr"] is None, p["bsr"] or 0))
     return {
-        "browse_node": str(browse_node),
+        "browse_node": scan_node,
+        # Set when the node asked for was a browse alias: the id the caller passed, so a
+        # response that names a different node than the request says why.
+        "resolved_from": alias_of,
         "domain": domain,
         "filters": values,
         "total_matches": total,
