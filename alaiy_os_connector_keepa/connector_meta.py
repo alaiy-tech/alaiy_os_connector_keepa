@@ -48,6 +48,7 @@ connector_meta = {
     "is_enabled": 0,
     "connection_status": "untested",
     "health": [
-        _health("watchlist", "Watchlist refresh", "watchlist", "keepa_watchlist_sync_interval"),
+        # The watchlist sync records tokens used, not item counts, so a run always reads as 0 rows.
+        _health("watchlist", "Watchlist refresh", "watchlist", "keepa_watchlist_sync_interval", expects_rows=False),
     ],
 }
