@@ -3,6 +3,29 @@ Single source of truth for this connector's registration metadata.
 Consumed by setup/install.py -> upserted into alaiy_os's OS Connector Registry.
 """
 
+# Columns of Keepa Sync Log, named the way the Connector Health page reads them.
+_LOG_FIELDS = {
+    "processed": "items_processed",
+    "changed": ["items_created", "items_updated"],
+    "failed": "items_failed",
+    "error": "error_message",
+}
+
+
+def _health(key, label, sync_type, interval_setting, expects_rows=True):
+    return {
+        "key": key,
+        "label": label,
+        "direction": "pull",
+        "log_doctype": "Keepa Sync Log",
+        "log_filter": {"sync_type": sync_type},
+        "fields": _LOG_FIELDS,
+        "interval_setting": interval_setting,
+        "scheduled": True,
+        "expects_rows": expects_rows,
+    }
+
+
 connector_meta = {
     "connector_id": "keepa",
     "connector_name": "Keepa",
@@ -24,4 +47,7 @@ connector_meta = {
     "sync_items_label": "Refresh Watchlist",
     "is_enabled": 0,
     "connection_status": "untested",
+    "health": [
+        _health("watchlist", "Watchlist refresh", "watchlist", "keepa_watchlist_sync_interval"),
+    ],
 }
