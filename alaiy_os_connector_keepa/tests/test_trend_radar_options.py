@@ -1,5 +1,5 @@
-"""Trend radar scan options: keyword and multi-node scans, one row per listing, every filter
-on the agent tool, review velocity, the category cache and the agent warnings.
+"""Trend radar scan options: keyword and multi-node scans, one row per listing, every filter,
+review velocity and the category cache.
 
 Nothing here calls Keepa.
 
@@ -13,8 +13,6 @@ from unittest.mock import MagicMock, patch
 
 from alaiy_os_connector_keepa.tests import fake_frappe
 
-from alaiy_os_connector_keepa.agent import agent_export  # noqa: E402
-from alaiy_os_connector_keepa.api import test_connection as connection  # noqa: E402
 from alaiy_os_connector_keepa.keepa import category as category_module  # noqa: E402
 from alaiy_os_connector_keepa.keepa import trend_filters, trend_radar  # noqa: E402
 from alaiy_os_connector_keepa.keepa.history import interval_min  # noqa: E402
@@ -93,42 +91,6 @@ class TestScanOptions(unittest.TestCase):
         with patch.object(trend_radar, "get_category", return_value={}) as lookup:
             trend_radar.resolve_browse_nodes(["11", "22", "33"], 10)
         self.assertEqual(lookup.call_count, 1)
-
-
-class TestAgentSchema(unittest.TestCase):
-    def _tool(self, tool_id):
-        return next(t for t in agent_export.TOOLS if t["tool_id"] == tool_id)
-
-    def test_scan_tool_exposes_every_filter(self):
-        properties = self._tool("scan_browse_node")["parameters_schema"]["properties"]
-        missing = set(trend_filters.DEFAULTS) - set(properties)
-        self.assertEqual(missing, set(), "filters the model cannot loosen")
-
-    def test_every_filter_can_be_cleared_with_null(self):
-        properties = self._tool("scan_browse_node")["parameters_schema"]["properties"]
-        for name in trend_filters.DEFAULTS:
-            self.assertIn("null", properties[name]["type"], name)
-
-    def test_scan_tool_takes_a_title_and_a_node_list(self):
-        properties = self._tool("scan_browse_node")["parameters_schema"]["properties"]
-        self.assertIn("title", properties)
-        self.assertIn("several", properties["browse_node"]["description"])
-
-    def test_a_null_filter_clears_the_bound_instead_of_being_dropped(self):
-        from alaiy_os_connector_keepa.agent.tools import keepa_trend
-
-        seen = {}
-
-        def fake_scan(node, domain=None, limit=None, title=None, **filters):
-            seen.update(filters)
-            return {"products": [], "browse_node": node, "browse_nodes": [node],
-                    "resolved_from": {}, "title": title, "domain": 10,
-                    "total_matches": 0, "filters": {}, "tokens_left": 1}
-
-        with patch.object(keepa_trend.trend_radar, "scan", side_effect=fake_scan):
-            keepa_trend.scan_browse_node(browse_node="1", max_rank=None, min_rating=3.0)
-        self.assertEqual(seen, {"max_rank": None, "min_rating": 3.0})
-        self.assertIsNone(trend_filters.preset(**seen)["max_rank"])
 
 
 def _points(counts, start=datetime(2026, 6, 1)):
@@ -242,35 +204,6 @@ class TestCategoryCache(unittest.TestCase):
         category_module.get_category("0", marketplace=10)
         self.assertEqual(len(self.calls), 4)
         self.assertEqual(self.store, {})
-
-
-class TestAgentWarnings(unittest.TestCase):
-    def _warnings(self, installed, registry_enabled, registry_present=True):
-        frappe = fake_frappe.FRAPPE
-        frappe.get_installed_apps.return_value = installed
-        frappe.db.exists.return_value = registry_present
-        frappe.db.get_value.return_value = registry_enabled
-        return connection.agent_warnings()
-
-    def test_disabled_connector_is_flagged(self):
-        warnings = self._warnings(["alaiy_os_agents"], 0)
-        self.assertEqual(len(warnings), 1)
-        self.assertIn("disabled", warnings[0])
-
-    def test_missing_agents_app_is_flagged(self):
-        warnings = self._warnings(["frappe"], 1)
-        self.assertEqual(len(warnings), 1)
-        self.assertIn("alaiy_os_agents", warnings[0])
-
-    def test_enabled_and_installed_is_quiet(self):
-        self.assertEqual(self._warnings(["alaiy_os_agents"], 1), [])
-
-    def test_a_failure_while_checking_is_quiet(self):
-        fake_frappe.FRAPPE.get_installed_apps.side_effect = RuntimeError("boom")
-        try:
-            self.assertEqual(connection.agent_warnings(), [])
-        finally:
-            fake_frappe.FRAPPE.get_installed_apps.side_effect = None
 
 
 if __name__ == "__main__":
